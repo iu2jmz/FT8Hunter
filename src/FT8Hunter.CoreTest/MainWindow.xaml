@@ -1,7 +1,7 @@
 <Window x:Class="FT8Hunter.CoreTest.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="FT8 Hunter - Core Test" Height="720" Width="1050" MinHeight="620" MinWidth="900">
+        Title="FT8 Hunter - Core Test" Height="760" Width="1160" MinHeight="680" MinWidth="980">
     <Grid Margin="14">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -16,7 +16,7 @@
 
         <Grid Grid.Row="1" Margin="0,14,0,14">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="1.15*"/>
                 <ColumnDefinition Width="16"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
@@ -32,19 +32,41 @@
                         <Button Content="Connetti" Margin="10,0,0,0" Padding="14,5" Click="ConnectRig_Click"/>
                         <Button Content="Setup OmniRig" Margin="8,0,0,0" Padding="14,5" Click="SetupOmniRig_Click"/>
                     </StackPanel>
+
                     <TextBlock x:Name="RigStatus" Margin="0,10,0,0" FontWeight="SemiBold" Text="Disconnesso" TextWrapping="Wrap"/>
+
                     <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
-                        <TextBlock VerticalAlignment="Center" Text="Freq. Hz:" Margin="0,0,8,0"/>
+                        <TextBlock VerticalAlignment="Center" Text="Freq. RX Hz:" Margin="0,0,8,0"/>
                         <TextBox x:Name="FrequencyBox" Width="120" Text="14074000"/>
                         <Button Content="Imposta" Margin="8,0,0,0" Padding="12,4" Click="SetFrequency_Click"/>
-                        <Button Content="14.074 + DIG-U" Margin="8,0,0,0" Padding="12,4" Click="Tune20m_Click"/>
+                        <Button Content="14.074" Margin="8,0,0,0" Padding="12,4" Click="Tune20m_Click"/>
                     </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                        <TextBlock VerticalAlignment="Center" Text="Radio:" Margin="0,0,8,0"/>
+                        <Button x:Name="UsbButton" Content="USB" Width="72" Padding="12,5" Click="UsbMode_Click"/>
+                        <Button x:Name="DataButton" Content="DATA" Width="72" Margin="8,0,0,0" Padding="12,5" Click="DataMode_Click"/>
+                        <ToggleButton x:Name="SplitButton" Content="SPLIT" Width="82" Margin="8,0,0,0" Padding="12,5"
+                                      Checked="SplitButton_Checked" Unchecked="SplitButton_Unchecked"/>
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                        <TextBlock VerticalAlignment="Center" Text="Posizione TX:" Margin="0,0,8,0"/>
+                        <TextBox x:Name="TxPositionBox" Width="70" Text="1500"/>
+                        <TextBlock VerticalAlignment="Center" Text=" Hz" Margin="4,0,0,0"/>
+                        <Button Content="Applica TX" Margin="10,0,0,0" Padding="12,4" Click="ApplyTxPosition_Click"/>
+                        <TextBlock x:Name="TxSplitStatus" VerticalAlignment="Center" Margin="12,0,0,0" FontWeight="SemiBold" Text="TX VFO B: --"/>
+                    </StackPanel>
+
+                    <TextBlock Margin="0,7,0,0" TextWrapping="Wrap" Foreground="DimGray"
+                               Text="Con SPLIT attivo: VFO A = RX; VFO B = TX in DATA. FT8 Hunter mantiene il tono TX interno a 1500 Hz e sposta il VFO B in base alla posizione TX. Doppio clic su un decode per usare la sua frequenza audio come posizione TX."/>
+
                     <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
                         <CheckBox x:Name="ArmPtt" Content="ABILITA TEST PTT" VerticalAlignment="Center"/>
                         <Button Content="PTT ON" Margin="12,0,0,0" Padding="12,4" Click="PttOn_Click"/>
                         <Button Content="PTT OFF" Margin="8,0,0,0" Padding="12,4" Click="PttOff_Click"/>
                     </StackPanel>
-                    <TextBlock Margin="0,10,0,0" TextWrapping="Wrap" Foreground="DarkRed" Text="Per il primo test lascia PTT disabilitato. Il PTT ON richiede esplicitamente la spunta di sicurezza."/>
+                    <TextBlock Margin="0,10,0,0" TextWrapping="Wrap" Foreground="DarkRed" Text="Il PTT ON richiede esplicitamente la spunta di sicurezza."/>
                 </StackPanel>
             </GroupBox>
 
@@ -76,7 +98,7 @@
                     <RowDefinition Height="*"/>
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
-                <ListBox x:Name="LogList" FontFamily="Consolas" FontSize="13"/>
+                <ListBox x:Name="LogList" FontFamily="Consolas" FontSize="13" MouseDoubleClick="LogList_MouseDoubleClick"/>
                 <Button Grid.Row="1" HorizontalAlignment="Right" Content="Pulisci" Margin="0,8,0,0" Padding="12,4" Click="ClearLog_Click"/>
             </Grid>
         </GroupBox>
