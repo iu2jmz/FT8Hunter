@@ -10,6 +10,9 @@ namespace FT8Hunter.CoreTest;
 
 public partial class MainWindow : Window
 {
+    private const int PM_FREQ = 0x00000002;
+    private const int PM_FREQA = 0x00000004;
+    private const int PM_FREQB = 0x00000008;
     private const int PM_RX = 0x00200000;
     private const int PM_TX = 0x00400000;
     private const int PM_DIG_U = 0x08000000;
@@ -43,6 +46,12 @@ public partial class MainWindow : Window
                        ?? throw new InvalidOperationException("Impossibile avviare OmniRig.");
             _rig = rigNo == 1 ? _omniRig.Rig1 : _omniRig.Rig2;
             AddLog("RADIO", $"Connesso a OmniRig Rig {rigNo}");
+            try
+            {
+                int wr = Convert.ToInt32(_rig.WriteableParams);
+                AddLog("RADIO", $"Parametri scrivibili OmniRig: 0x{wr:X8}");
+            }
+            catch { }
             RefreshRigStatus();
         }
         catch (Exception ex)
@@ -67,12 +76,14 @@ public partial class MainWindow : Window
         try
         {
             EnsureRig();
-            long hz = long.Parse(FrequencyBox.Text.Trim(), CultureInfo.InvariantCulture);
-            if (hz is < 100_000 or > 100_000_000) throw new ArgumentOutOfRangeException(nameof(hz));
-            _rig!.Freq = checked((int)hz);
-            AddLog("RADIO", $"Frequenza impostata: {hz:N0} Hz");
+            long hzLong = long.Parse(FrequencyBox.Text.Trim(), CultureInfo.InvariantCulture);
+            if (hzLong is < 100_000 or > 100_000_000)
+                throw new ArgumentOutOfRangeException(nameof(hzLong), "Frequenza fuori intervallo.");
+
+            int hz = checked((int)hzLong);
+            SetRadioFrequency(hz);
         }
-        catch (Exception ex) { AddLog("RADIO", "ERRORE: " + ex.Message); }
+        catch (Exception ex) { AddLog("RADIO", "ERRORE FREQUENZA: " + ex.Message); }
     }
 
     private void Tune20m_Click(object sender, RoutedEventArgs e)
@@ -80,12 +91,117 @@ public partial class MainWindow : Window
         try
         {
             EnsureRig();
-            _rig!.Freq = 14_074_000;
-            _rig.Mode = PM_DIG_U;
-            FrequencyBox.Text = "14074000";
-            AddLog("RADIO", "14.074.000 Hz + DIG-U richiesti via OmniRig");
+            const int hz = 14_074_000;
+            SetRadioFrequency(hz);
+            _rig!.Mode = PM_DIG_U;
+            FrequencyBox.Text = hz.ToString(CultureInfo.InvariantCulture);
+            AddLog("RADIO", "DIG-U richiesto via OmniRig");
         }
-        catch (Exception ex) { AddLog("RADIO", "ERRORE: " + ex.Message); }
+        catch (Exception ex) { AddLog("RADIO", "ERRORE 20m: " + ex.Message); }
+    }
+
+    private void SetRadioFrequency(int hz)
+    {
+        EnsureRig();
+
+        int writable = 0;
+        try { writable = Convert.ToInt32(_rig!.WriteableParams); } catch { }
+        AddLog("RADIO", $"Richiesta sintonia {hz:N0} Hz (Writeable=0x{writable:X8})");
+
+        Exception? lastError = null;
+        bool commandSent = false;
+
+        // Metodo preferito di OmniRig: sceglie automaticamente Freq/FreqA/VFO corretto,
+        // disabilita split e porta entrambi RX/TX sulla frequenza richiesta quando possibile.
+        try
+        {
+            _rig!.SetSimplexMode(hz);
+            commandSent = true;
+            AddLog("RADIO", "Comando inviato con SetSimplexMode().");
+        }
+        catch (Exception ex)
+        {
+            lastError = ex;
+            AddLog("RADIO", "SetSimplexMode non riuscito: " + ex.Message);
+        }
+
+        // Fallback per definizioni OmniRig che non implementano bene SetSimplexMode.
+        if (!commandSent || !FrequencyLooksCorrect(hz))
+        {
+            if ((writable & PM_FREQA) != 0)
+            {
+                try
+                {
+                    _rig!.FreqA = hz;
+                    commandSent = true;
+                    AddLog("RADIO", "Fallback FreqA inviato.");
+                }
+                catch (Exception ex) { lastError = ex; }
+            }
+
+            if (!FrequencyLooksCorrect(hz) && (writable & PM_FREQ) != 0)
+            {
+                try
+                {
+                    _rig!.Freq = hz;
+                    commandSent = true;
+                    AddLog("RADIO", "Fallback Freq inviato.");
+                }
+                catch (Exception ex) { lastError = ex; }
+            }
+
+            if (!FrequencyLooksCorrect(hz) && (writable & PM_FREQB) != 0)
+            {
+                // Non forziamo VFO B: scriviamo solo come ultimo tentativo se il driver espone
+                // esclusivamente FreqB. In condizioni normali IC-7300 non arriva qui.
+                try
+                {
+                    if ((writable & (PM_FREQ | PM_FREQA)) == 0)
+                    {
+                        _rig!.FreqB = hz;
+                        commandSent = true;
+                        AddLog("RADIO", "Fallback FreqB inviato.");
+                    }
+                }
+                catch (Exception ex) { lastError = ex; }
+            }
+        }
+
+        if (!commandSent)
+            throw new InvalidOperationException("OmniRig non espone un comando di frequenza scrivibile.", lastError);
+
+        // OmniRig accoda i comandi CAT: il polling mostrerà il readback reale appena la radio risponde.
+        Dispatcher.BeginInvoke(async () =>
+        {
+            await Task.Delay(650);
+            long readback = ReadRxFrequency();
+            if (Math.Abs(readback - hz) <= 20)
+                AddLog("RADIO", $"OK: radio sintonizzata a {readback:N0} Hz");
+            else
+                AddLog("RADIO", $"ATTENZIONE: richiesti {hz:N0} Hz, letti {readback:N0} Hz");
+            RefreshRigStatus();
+        });
+    }
+
+    private bool FrequencyLooksCorrect(int requestedHz)
+    {
+        try
+        {
+            long current = ReadRxFrequency();
+            return Math.Abs(current - requestedHz) <= 20;
+        }
+        catch { return false; }
+    }
+
+    private long ReadRxFrequency()
+    {
+        EnsureRig();
+        try { return Convert.ToInt64(_rig!.GetRxFrequency()); }
+        catch
+        {
+            try { return Convert.ToInt64(_rig!.Freq); }
+            catch { return Convert.ToInt64(_rig!.FreqA); }
+        }
     }
 
     private void PttOn_Click(object sender, RoutedEventArgs e)
@@ -161,7 +277,7 @@ public partial class MainWindow : Window
                 throw new InvalidOperationException("Seleziona l'ingresso audio USB del 7300.");
 
             ConfigureDecoder();
-            _rt = new RealTimeDecoder(_decoder, DigitalMode.FT8, 48_000)
+            _rt = new RealTimeDecoder(DigitalMode.FT8, 48_000)
             {
                 FreqLow = 200,
                 FreqHigh = 3000,
@@ -267,7 +383,7 @@ public partial class MainWindow : Window
         {
             string type = Convert.ToString(_rig.RigType) ?? "?";
             string status = Convert.ToString(_rig.StatusStr) ?? "?";
-            long freq = Convert.ToInt64(_rig.Freq);
+            long freq = ReadRxFrequency();
             int mode = Convert.ToInt32(_rig.Mode);
             int tx = Convert.ToInt32(_rig.Tx);
             RigStatus.Text = $"{type} | {status} | {freq:N0} Hz | Mode=0x{mode:X8} | {((tx & PM_TX) != 0 ? "TX" : "RX")}";
