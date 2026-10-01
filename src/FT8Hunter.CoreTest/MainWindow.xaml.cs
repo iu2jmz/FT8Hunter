@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
@@ -10,12 +11,24 @@ namespace FT8Hunter.CoreTest;
 
 public partial class MainWindow : Window
 {
+    private const int PM_UNKNOWN = 0x00000001;
     private const int PM_FREQ = 0x00000002;
     private const int PM_FREQA = 0x00000004;
     private const int PM_FREQB = 0x00000008;
+    private const int PM_VFOEQUAL = 0x00002000;
+    private const int PM_VFOSWAP = 0x00004000;
+    private const int PM_VFOA = 0x00000800;
+    private const int PM_VFOB = 0x00001000;
+    private const int PM_SPLITON = 0x00008000;
+    private const int PM_SPLITOFF = 0x00010000;
     private const int PM_RX = 0x00200000;
     private const int PM_TX = 0x00400000;
+    private const int PM_SSB_U = 0x02000000;
     private const int PM_DIG_U = 0x08000000;
+
+    // In Rig Split il motore FT8 trasmetterà sempre a 1500 Hz audio.
+    // Il VFO B viene spostato per mantenere invariata la frequenza RF scelta sul waterfall.
+    private const int SplitTxAudioHz = 1500;
 
     private dynamic? _omniRig;
     private dynamic? _rig;
@@ -23,6 +36,11 @@ public partial class MainWindow : Window
     private readonly DecoderEngine _decoder = new();
     private RealTimeDecoder? _rt;
     private readonly DispatcherTimer _poll;
+
+    private bool _splitEnabled;
+    private long _splitRxFrequency;
+    private int _txWaterfallHz = SplitTxAudioHz;
+    private bool _ignoreSplitToggle;
 
     public MainWindow()
     {
@@ -45,13 +63,23 @@ public partial class MainWindow : Window
             _omniRig = Activator.CreateInstance(t)
                        ?? throw new InvalidOperationException("Impossibile avviare OmniRig.");
             _rig = rigNo == 1 ? _omniRig.Rig1 : _omniRig.Rig2;
-            AddLog("RADIO", $"Connesso a OmniRig Rig {rigNo}");
+
+            string type = Convert.ToString(_rig.RigType) ?? "?";
+            AddLog("RADIO", $"Connesso a OmniRig Rig {rigNo}: {type}");
+            AddLog("RADIO", $"Parametri scrivibili OmniRig: 0x{GetWritableParams():X8}");
+
             try
             {
-                int wr = Convert.ToInt32(_rig.WriteableParams);
-                AddLog("RADIO", $"Parametri scrivibili OmniRig: 0x{wr:X8}");
+                _splitEnabled = ReadSplitActive();
+                _splitRxFrequency = ReadRxFrequency();
+                SetSplitButtonState(_splitEnabled);
             }
-            catch { }
+            catch
+            {
+                _splitEnabled = false;
+                SetSplitButtonState(false);
+            }
+
             RefreshRigStatus();
         }
         catch (Exception ex)
@@ -80,8 +108,7 @@ public partial class MainWindow : Window
             if (hzLong is < 100_000 or > 100_000_000)
                 throw new ArgumentOutOfRangeException(nameof(hzLong), "Frequenza fuori intervallo.");
 
-            int hz = checked((int)hzLong);
-            SetRadioFrequency(hz);
+            SetRadioFrequency(checked((int)hzLong));
         }
         catch (Exception ex) { AddLog("RADIO", "ERRORE FREQUENZA: " + ex.Message); }
     }
@@ -93,9 +120,7 @@ public partial class MainWindow : Window
             EnsureRig();
             const int hz = 14_074_000;
             SetRadioFrequency(hz);
-            _rig!.Mode = PM_DIG_U;
             FrequencyBox.Text = hz.ToString(CultureInfo.InvariantCulture);
-            AddLog("RADIO", "DIG-U richiesto via OmniRig");
         }
         catch (Exception ex) { AddLog("RADIO", "ERRORE 20m: " + ex.Message); }
     }
@@ -104,15 +129,19 @@ public partial class MainWindow : Window
     {
         EnsureRig();
 
-        int writable = 0;
-        try { writable = Convert.ToInt32(_rig!.WriteableParams); } catch { }
+        if (_splitEnabled)
+        {
+            _splitRxFrequency = hz;
+            ApplyRigSplit(hz, _txWaterfallHz, "Cambio frequenza RX");
+            return;
+        }
+
+        int writable = GetWritableParams();
         AddLog("RADIO", $"Richiesta sintonia {hz:N0} Hz (Writeable=0x{writable:X8})");
 
         Exception? lastError = null;
         bool commandSent = false;
 
-        // Metodo preferito di OmniRig: sceglie automaticamente Freq/FreqA/VFO corretto,
-        // disabilita split e porta entrambi RX/TX sulla frequenza richiesta quando possibile.
         try
         {
             _rig!.SetSimplexMode(hz);
@@ -125,7 +154,6 @@ public partial class MainWindow : Window
             AddLog("RADIO", "SetSimplexMode non riuscito: " + ex.Message);
         }
 
-        // Fallback per definizioni OmniRig che non implementano bene SetSimplexMode.
         if (!commandSent || !FrequencyLooksCorrect(hz))
         {
             if ((writable & PM_FREQA) != 0)
@@ -150,18 +178,14 @@ public partial class MainWindow : Window
                 catch (Exception ex) { lastError = ex; }
             }
 
-            if (!FrequencyLooksCorrect(hz) && (writable & PM_FREQB) != 0)
+            if (!FrequencyLooksCorrect(hz) && (writable & PM_FREQB) != 0 &&
+                (writable & (PM_FREQ | PM_FREQA)) == 0)
             {
-                // Non forziamo VFO B: scriviamo solo come ultimo tentativo se il driver espone
-                // esclusivamente FreqB. In condizioni normali IC-7300 non arriva qui.
                 try
                 {
-                    if ((writable & (PM_FREQ | PM_FREQA)) == 0)
-                    {
-                        _rig!.FreqB = hz;
-                        commandSent = true;
-                        AddLog("RADIO", "Fallback FreqB inviato.");
-                    }
+                    _rig!.FreqB = hz;
+                    commandSent = true;
+                    AddLog("RADIO", "Fallback FreqB inviato.");
                 }
                 catch (Exception ex) { lastError = ex; }
             }
@@ -170,7 +194,6 @@ public partial class MainWindow : Window
         if (!commandSent)
             throw new InvalidOperationException("OmniRig non espone un comando di frequenza scrivibile.", lastError);
 
-        // OmniRig accoda i comandi CAT: il polling mostrerà il readback reale appena la radio risponde.
         Dispatcher.BeginInvoke(async () =>
         {
             await Task.Delay(650);
@@ -181,6 +204,283 @@ public partial class MainWindow : Window
                 AddLog("RADIO", $"ATTENZIONE: richiesti {hz:N0} Hz, letti {readback:N0} Hz");
             RefreshRigStatus();
         });
+    }
+
+    private void UsbMode_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            EnsureRig();
+            _rig!.Mode = PM_SSB_U;
+            AddLog("RADIO", "Modo RX richiesto: USB");
+
+            // In split il VFO B resta sempre DATA per la trasmissione FT8.
+            if (_splitEnabled)
+                ForceTxVfoDataMode();
+
+            VerifyModeLater(PM_SSB_U, "USB");
+        }
+        catch (Exception ex) { AddLog("RADIO", "ERRORE USB: " + ex.Message); }
+    }
+
+    private void DataMode_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            EnsureRig();
+            _rig!.Mode = PM_DIG_U;
+            AddLog("RADIO", "Modo RX richiesto: DATA / USB-D");
+
+            if (_splitEnabled)
+                ForceTxVfoDataMode();
+
+            VerifyModeLater(PM_DIG_U, "DATA / USB-D");
+        }
+        catch (Exception ex) { AddLog("RADIO", "ERRORE DATA: " + ex.Message); }
+    }
+
+    private void VerifyModeLater(int expectedMode, string requestedName)
+    {
+        Dispatcher.BeginInvoke(async () =>
+        {
+            await Task.Delay(650);
+            try
+            {
+                int mode = Convert.ToInt32(_rig!.Mode);
+                string actual = ModeName(mode);
+                bool ok = (mode & expectedMode) != 0;
+                AddLog("RADIO", ok
+                    ? $"Modo confermato: {actual}"
+                    : $"ATTENZIONE: richiesto {requestedName}, OmniRig legge {actual} (0x{mode:X8}).");
+
+                if (expectedMode == PM_DIG_U && !ok)
+                    AddLog("RADIO", "Se il display del 7300 non mostra USB-D, verificare in Setup OmniRig l'uso del profilo IC-7300-DATA.");
+
+                RefreshRigStatus();
+            }
+            catch (Exception ex) { AddLog("RADIO", "Verifica modo non riuscita: " + ex.Message); }
+        });
+    }
+
+    private void SplitButton_Checked(object sender, RoutedEventArgs e)
+    {
+        if (_ignoreSplitToggle) return;
+        try
+        {
+            EnableRigSplit();
+        }
+        catch (Exception ex)
+        {
+            AddLog("SPLIT", "ERRORE: " + ex.Message);
+            _splitEnabled = false;
+            SetSplitButtonState(false);
+        }
+    }
+
+    private void SplitButton_Unchecked(object sender, RoutedEventArgs e)
+    {
+        if (_ignoreSplitToggle) return;
+        try
+        {
+            DisableRigSplit();
+        }
+        catch (Exception ex) { AddLog("SPLIT", "ERRORE: " + ex.Message); }
+    }
+
+    private void EnableRigSplit()
+    {
+        EnsureRig();
+        int position = ParseTxPosition();
+        long rx = ReadRxFrequency();
+        _splitEnabled = true;
+        _splitRxFrequency = rx;
+        _txWaterfallHz = position;
+        SetSplitButtonState(true);
+        ApplyRigSplit(rx, position, "SPLIT attivato");
+    }
+
+    private void DisableRigSplit()
+    {
+        if (_rig is null)
+        {
+            _splitEnabled = false;
+            SetSplitButtonState(false);
+            return;
+        }
+
+        long rx = ReadRxFrequency();
+        _rig.SetSimplexMode(checked((int)rx));
+        _splitEnabled = false;
+        _splitRxFrequency = rx;
+        SetSplitButtonState(false);
+        TxSplitStatus.Text = "TX VFO B: --";
+        AddLog("SPLIT", $"OFF — simplex su {rx:N0} Hz");
+        RefreshRigStatus();
+    }
+
+    private void ApplyTxPosition_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            int position = ParseTxPosition();
+            _txWaterfallHz = position;
+
+            if (!_splitEnabled)
+            {
+                AddLog("SPLIT", $"Posizione TX memorizzata: {position} Hz. Attiva SPLIT per aggiornare il VFO B.");
+                return;
+            }
+
+            long rx = ReadRxFrequency();
+            _splitRxFrequency = rx;
+            ApplyRigSplit(rx, position, "Posizione TX aggiornata");
+        }
+        catch (Exception ex) { AddLog("SPLIT", "ERRORE POSIZIONE TX: " + ex.Message); }
+    }
+
+    private int ParseTxPosition()
+    {
+        if (!int.TryParse(TxPositionBox.Text.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out int hz))
+            throw new InvalidOperationException("Posizione TX non valida.");
+        if (hz is < 200 or > 3000)
+            throw new InvalidOperationException("La posizione TX deve essere compresa tra 200 e 3000 Hz.");
+        return hz;
+    }
+
+    private void ApplyRigSplit(long rxFrequency, int waterfallTxHz, string reason)
+    {
+        EnsureRig();
+        if (rxFrequency is < 100_000 or > 100_000_000)
+            throw new InvalidOperationException("Frequenza RX non valida per lo split.");
+
+        // RF desiderata = dial RX + posizione scelta sul waterfall.
+        // Generando l'FT8 a 1500 Hz audio, il dial TX deve essere:
+        // VFO B = RX + posizioneWaterfall - 1500.
+        long txDial = rxFrequency + waterfallTxHz - SplitTxAudioHz;
+        if (txDial is < 100_000 or > 100_000_000)
+            throw new InvalidOperationException("Frequenza TX calcolata fuori intervallo.");
+
+        _rig!.SetSplitMode(checked((int)rxFrequency), checked((int)txDial));
+        ForceTxVfoDataMode();
+
+        _splitEnabled = true;
+        _splitRxFrequency = rxFrequency;
+        _txWaterfallHz = waterfallTxHz;
+        SetSplitButtonState(true);
+
+        long rfSignal = txDial + SplitTxAudioHz;
+        TxSplitStatus.Text = $"TX VFO B: {txDial:N0} Hz";
+        AddLog("SPLIT", $"{reason}: A/RX {rxFrequency:N0} Hz | B/TX {txDial:N0} Hz | audio TX {SplitTxAudioHz} Hz | RF {rfSignal:N0} Hz");
+
+        Dispatcher.BeginInvoke(async () =>
+        {
+            await Task.Delay(750);
+            try
+            {
+                long rx = ReadRxFrequency();
+                long tx = ReadTxFrequency();
+                bool split = ReadSplitActive();
+                string txText = tx > 0 ? tx.ToString("N0", CultureInfo.CurrentCulture) : "non leggibile";
+                AddLog("SPLIT", $"Readback: SPLIT {(split ? "ON" : "?")} | RX {rx:N0} Hz | TX {txText} Hz");
+                RefreshRigStatus();
+            }
+            catch (Exception ex) { AddLog("SPLIT", "Readback non riuscito: " + ex.Message); }
+        });
+    }
+
+    private void ForceTxVfoDataMode()
+    {
+        EnsureRig();
+        int writable = GetWritableParams();
+        bool setOnB = false;
+
+        // Stessa strategia usata dal backend OmniRig di WSJT-X/WSJT-Z:
+        // se possibile seleziona VFO B, imposta DIG-U, poi torna al VFO A.
+        if ((writable & PM_VFOA) != 0 && (writable & PM_VFOB) != 0)
+        {
+            try
+            {
+                _rig!.Vfo = PM_VFOB;
+                _rig.Mode = PM_DIG_U;
+                _rig.Vfo = PM_VFOA;
+                setOnB = true;
+                AddLog("SPLIT", "VFO B impostato DATA / USB-D; ritorno a VFO A.");
+            }
+            catch (Exception ex)
+            {
+                AddLog("SPLIT", "Impostazione DATA su VFO B via VFO A/B non riuscita: " + ex.Message);
+            }
+        }
+        else if ((writable & PM_VFOSWAP) != 0)
+        {
+            try
+            {
+                _rig!.Vfo = PM_VFOSWAP;
+                _rig.Mode = PM_DIG_U;
+                _rig.Vfo = PM_VFOSWAP;
+                setOnB = true;
+                AddLog("SPLIT", "VFO TX impostato DATA tramite VFO SWAP.");
+            }
+            catch (Exception ex)
+            {
+                AddLog("SPLIT", "Impostazione DATA tramite VFO SWAP non riuscita: " + ex.Message);
+            }
+        }
+
+        if (!setOnB)
+        {
+            // Alcune definizioni OmniRig non espongono il VFO separatamente. In quel caso
+            // chiediamo DIG-U al driver e lasciamo a SetSplitMode la gestione A/B.
+            try
+            {
+                _rig!.Mode = PM_DIG_U;
+                AddLog("SPLIT", "OmniRig non espone la selezione VFO B: richiesto DATA al driver.");
+            }
+            catch (Exception ex)
+            {
+                AddLog("SPLIT", "ERRORE impostazione DATA TX: " + ex.Message);
+            }
+        }
+    }
+
+    private void SetSplitButtonState(bool enabled)
+    {
+        _ignoreSplitToggle = true;
+        SplitButton.IsChecked = enabled;
+        SplitButton.Content = enabled ? "SPLIT ON" : "SPLIT";
+        _ignoreSplitToggle = false;
+    }
+
+    private void LogList_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (LogList.SelectedItem is not string line) return;
+
+        Match match = Regex.Match(line, @"\b(\d{3,4})\s+Hz\b");
+        if (!match.Success || !int.TryParse(match.Groups[1].Value, out int hz))
+            return;
+        if (hz is < 200 or > 3000)
+            return;
+
+        TxPositionBox.Text = hz.ToString(CultureInfo.InvariantCulture);
+        _txWaterfallHz = hz;
+        AddLog("SPLIT", $"Posizione TX presa dal decode: {hz} Hz");
+
+        if (_splitEnabled)
+        {
+            try
+            {
+                long rx = ReadRxFrequency();
+                _splitRxFrequency = rx;
+                ApplyRigSplit(rx, hz, "Doppio clic decode");
+            }
+            catch (Exception ex) { AddLog("SPLIT", "ERRORE: " + ex.Message); }
+        }
+    }
+
+    private int GetWritableParams()
+    {
+        try { return Convert.ToInt32(_rig!.WriteableParams); }
+        catch { return 0; }
     }
 
     private bool FrequencyLooksCorrect(int requestedHz)
@@ -196,12 +496,62 @@ public partial class MainWindow : Window
     private long ReadRxFrequency()
     {
         EnsureRig();
-        try { return Convert.ToInt64(_rig!.GetRxFrequency()); }
-        catch
+        try
         {
-            try { return Convert.ToInt64(_rig!.Freq); }
-            catch { return Convert.ToInt64(_rig!.FreqA); }
+            long f = Convert.ToInt64(_rig!.GetRxFrequency());
+            if (f > 0) return f;
         }
+        catch { }
+
+        try
+        {
+            long f = Convert.ToInt64(_rig!.Freq);
+            if (f > 0) return f;
+        }
+        catch { }
+
+        return Convert.ToInt64(_rig!.FreqA);
+    }
+
+    private long ReadTxFrequency()
+    {
+        EnsureRig();
+        try
+        {
+            long f = Convert.ToInt64(_rig!.GetTxFrequency());
+            if (f > 0) return f;
+        }
+        catch { }
+
+        try
+        {
+            long f = Convert.ToInt64(_rig!.FreqB);
+            if (f > 0) return f;
+        }
+        catch { }
+
+        return 0;
+    }
+
+    private bool ReadSplitActive()
+    {
+        EnsureRig();
+        try
+        {
+            int split = Convert.ToInt32(_rig!.Split);
+            if ((split & PM_SPLITON) != 0) return true;
+            if ((split & PM_SPLITOFF) != 0) return false;
+        }
+        catch { }
+        return _splitEnabled;
+    }
+
+    private static string ModeName(int mode)
+    {
+        // DIG-U ha priorità nel caso un driver esponga più flag contemporaneamente.
+        if ((mode & PM_DIG_U) != 0) return "DATA/USB-D";
+        if ((mode & PM_SSB_U) != 0) return "USB";
+        return $"0x{mode:X8}";
     }
 
     private void PttOn_Click(object sender, RoutedEventArgs e)
@@ -230,7 +580,7 @@ public partial class MainWindow : Window
             const string expected = "CQ W1AW FN42";
             var audio = enc.Encode(expected, DigitalMode.FT8, new EncoderOptions
             {
-                FrequencyHz = 1500,
+                FrequencyHz = SplitTxAudioHz,
                 Amplitude = 0.7
             });
             var results = _decoder.Decode(audio, DigitalMode.FT8, 200, 3000, "120000");
@@ -383,10 +733,20 @@ public partial class MainWindow : Window
         {
             string type = Convert.ToString(_rig.RigType) ?? "?";
             string status = Convert.ToString(_rig.StatusStr) ?? "?";
-            long freq = ReadRxFrequency();
+            long rx = ReadRxFrequency();
+            long tx = ReadTxFrequency();
             int mode = Convert.ToInt32(_rig.Mode);
-            int tx = Convert.ToInt32(_rig.Tx);
-            RigStatus.Text = $"{type} | {status} | {freq:N0} Hz | Mode=0x{mode:X8} | {((tx & PM_TX) != 0 ? "TX" : "RX")}";
+            int ptt = Convert.ToInt32(_rig.Tx);
+            bool splitReadback = ReadSplitActive();
+
+            string txText = tx > 0 ? $"{tx:N0} Hz" : "--";
+            RigStatus.Text = $"{type} | {status} | RX {rx:N0} Hz | TX {txText} | {ModeName(mode)} | SPLIT {(splitReadback ? "ON" : "OFF")} | {((ptt & PM_TX) != 0 ? "TX" : "RX")}";
+
+            UsbButton.FontWeight = (mode & PM_SSB_U) != 0 ? FontWeights.Bold : FontWeights.Normal;
+            DataButton.FontWeight = (mode & PM_DIG_U) != 0 ? FontWeights.Bold : FontWeights.Normal;
+
+            if (_splitEnabled && tx > 0)
+                TxSplitStatus.Text = $"TX VFO B: {tx:N0} Hz";
         }
         catch { }
     }
