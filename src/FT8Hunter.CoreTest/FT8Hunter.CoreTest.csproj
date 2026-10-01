@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Platforms>AnyCPU;x86;x64</Platforms>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AssemblyName>FT8Hunter_Test</AssemblyName>
+    <RootNamespace>FT8Hunter.CoreTest</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NAudio" Version="2.2.1" />
+  </ItemGroup>
+
+  <ItemGroup Condition="Exists('..\\..\\ThirdParty\\HamDigiSharp\\HamDigiSharp\\HamDigiSharp.csproj')">
+    <ProjectReference Include="..\\..\\ThirdParty\\HamDigiSharp\\HamDigiSharp\\HamDigiSharp.csproj" />
+  </ItemGroup>
+
+  <Target Name="RequireHamDigiSharp" BeforeTargets="BeforeBuild" Condition="!Exists('..\\..\\ThirdParty\\HamDigiSharp\\HamDigiSharp\\HamDigiSharp.csproj')">
+    <Error Text="HamDigiSharp non trovato. Eseguire bootstrap.ps1 dalla cartella principale del progetto." />
+  </Target>
+</Project>
