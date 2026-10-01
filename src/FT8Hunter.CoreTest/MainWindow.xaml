@@ -1,0 +1,84 @@
+<Window x:Class="FT8Hunter.CoreTest.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="FT8 Hunter - Core Test" Height="720" Width="1050" MinHeight="620" MinWidth="900">
+    <Grid Margin="14">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0">
+            <TextBlock FontSize="26" FontWeight="Bold" Text="FT8 Hunter — Core Test"/>
+            <TextBlock Margin="0,4,0,0" Foreground="DimGray" Text="Milestone 1: OmniRig + motore FT8 interno"/>
+        </StackPanel>
+
+        <Grid Grid.Row="1" Margin="0,14,0,14">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="16"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <GroupBox Grid.Column="0" Header="Radio / OmniRig" Padding="10">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock VerticalAlignment="Center" Text="Rig:" Margin="0,0,8,0"/>
+                        <ComboBox x:Name="RigCombo" Width="100" SelectedIndex="0">
+                            <ComboBoxItem Content="Rig 1" Tag="1"/>
+                            <ComboBoxItem Content="Rig 2" Tag="2"/>
+                        </ComboBox>
+                        <Button Content="Connetti" Margin="10,0,0,0" Padding="14,5" Click="ConnectRig_Click"/>
+                        <Button Content="Setup OmniRig" Margin="8,0,0,0" Padding="14,5" Click="SetupOmniRig_Click"/>
+                    </StackPanel>
+                    <TextBlock x:Name="RigStatus" Margin="0,10,0,0" FontWeight="SemiBold" Text="Disconnesso" TextWrapping="Wrap"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                        <TextBlock VerticalAlignment="Center" Text="Freq. Hz:" Margin="0,0,8,0"/>
+                        <TextBox x:Name="FrequencyBox" Width="120" Text="14074000"/>
+                        <Button Content="Imposta" Margin="8,0,0,0" Padding="12,4" Click="SetFrequency_Click"/>
+                        <Button Content="14.074 + DIG-U" Margin="8,0,0,0" Padding="12,4" Click="Tune20m_Click"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                        <CheckBox x:Name="ArmPtt" Content="ABILITA TEST PTT" VerticalAlignment="Center"/>
+                        <Button Content="PTT ON" Margin="12,0,0,0" Padding="12,4" Click="PttOn_Click"/>
+                        <Button Content="PTT OFF" Margin="8,0,0,0" Padding="12,4" Click="PttOff_Click"/>
+                    </StackPanel>
+                    <TextBlock Margin="0,10,0,0" TextWrapping="Wrap" Foreground="DarkRed" Text="Per il primo test lascia PTT disabilitato. Il PTT ON richiede esplicitamente la spunta di sicurezza."/>
+                </StackPanel>
+            </GroupBox>
+
+            <GroupBox Grid.Column="2" Header="Motore FT8 interno" Padding="10">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock VerticalAlignment="Center" Text="MY CALL:" Margin="0,0,8,0"/>
+                        <TextBox x:Name="MyCallBox" Width="110" Text="IU2JMZ"/>
+                        <Button Content="Self-test FT8" Margin="10,0,0,0" Padding="12,5" Click="SelfTest_Click"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                        <TextBlock VerticalAlignment="Center" Text="Audio RX:" Margin="0,0,8,0"/>
+                        <ComboBox x:Name="AudioCombo" Width="300"/>
+                        <Button Content="Aggiorna" Margin="8,0,0,0" Padding="10,4" Click="RefreshAudio_Click"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                        <Button Content="Avvia RX FT8" Padding="14,5" Click="StartFt8_Click"/>
+                        <Button Content="Stop" Margin="8,0,0,0" Padding="14,5" Click="StopFt8_Click"/>
+                    </StackPanel>
+                    <TextBlock x:Name="Ft8Status" Margin="0,10,0,0" FontWeight="SemiBold" Text="FT8 Engine fermo" TextWrapping="Wrap"/>
+                    <TextBlock Margin="0,10,0,0" TextWrapping="Wrap" Text="Il decoder FT8 è interno al programma. L'audio del 7300 viene acquisito a 48 kHz e riallineato ai periodi UTC da 15 secondi."/>
+                </StackPanel>
+            </GroupBox>
+        </Grid>
+
+        <GroupBox Grid.Row="2" Header="Decode / Log test" Padding="8">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <ListBox x:Name="LogList" FontFamily="Consolas" FontSize="13"/>
+                <Button Grid.Row="1" HorizontalAlignment="Right" Content="Pulisci" Margin="0,8,0,0" Padding="12,4" Click="ClearLog_Click"/>
+            </Grid>
+        </GroupBox>
+    </Grid>
+</Window>
