@@ -219,7 +219,7 @@ public partial class MainWindow : Window
                 return;
             }
             foreach (var r in results.OrderBy(x => x.FrequencyHz))
-                AddLog("FT8", $"{windowStart:HH:mm:ss}  {r.Snr,4:+#;-#;0} dB  dt={r.DeltaTime,5:F1}s  {r.FrequencyHz,7:F0} Hz  {r.Message}");
+                AddLog("FT8", $"{windowStart:HH:mm:ss}  {r.Snr,4:+#;-#;0} dB  dt={r.Dt,5:F1}s  {r.FrequencyHz,7:F0} Hz  {r.Message}");
         });
     }
 
