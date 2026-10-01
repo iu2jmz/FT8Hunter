@@ -1,0 +1,56 @@
+name: Build Windows Test EXE
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout FT8Hunter
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Checkout HamDigiSharp
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path ThirdParty | Out-Null
+          git clone --depth 1 https://github.com/HegrJan/HamDigiSharp.git ThirdParty/HamDigiSharp
+
+      - name: Restore
+        run: dotnet restore src/FT8Hunter.CoreTest/FT8Hunter.CoreTest.csproj
+
+      - name: Publish self-contained single EXE
+        shell: pwsh
+        run: |
+          dotnet publish src/FT8Hunter.CoreTest/FT8Hunter.CoreTest.csproj `
+            -c Release `
+            -r win-x64 `
+            --self-contained true `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:DebugType=None `
+            -p:DebugSymbols=false `
+            -o publish/win-x64
+
+      - name: Verify EXE
+        shell: pwsh
+        run: |
+          if (-not (Test-Path publish/win-x64/FT8Hunter_Test.exe)) { throw 'FT8Hunter_Test.exe non generato' }
+          Get-Item publish/win-x64/FT8Hunter_Test.exe | Format-List Name,Length,LastWriteTime
+
+      - name: Upload EXE artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: FT8Hunter_Test_win-x64
+          path: publish/win-x64/FT8Hunter_Test.exe
+          if-no-files-found: error
