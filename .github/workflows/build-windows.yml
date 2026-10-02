@@ -26,6 +26,10 @@ jobs:
           New-Item -ItemType Directory -Force -Path ThirdParty | Out-Null
           git clone --depth 1 https://github.com/HegrJan/HamDigiSharp.git ThirdParty/HamDigiSharp
 
+      - name: Apply IC-7300 USB-D patch
+        shell: pwsh
+        run: ./build/patch-ic7300-usbd.ps1
+
       - name: Restore
         run: dotnet restore src/FT8Hunter.CoreTest/FT8Hunter.CoreTest.csproj
 
