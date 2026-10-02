@@ -1,0 +1,55 @@
+#define MyAppName "FT8 Hunter"
+#define MyAppVersion "0.4"
+#define MyAppPublisher "IU2JMZ"
+#define MyAppExeName "FT8Hunter_Test.exe"
+
+[Setup]
+AppId={{A7B5D1A4-9D86-4B9E-BB35-4A3A8F5C7300}
+AppName={#MyAppName}
+AppVersion={#MyAppVersion}
+AppPublisher={#MyAppPublisher}
+DefaultDirName={autopf}\FT8 Hunter
+DefaultGroupName=FT8 Hunter
+DisableProgramGroupPage=yes
+OutputDir=..\installer-output
+OutputBaseFilename=FT8Hunter_Setup_v0.4
+Compression=lzma2
+SolidCompression=yes
+WizardStyle=modern
+PrivilegesRequired=admin
+ArchitecturesAllowed=x64compatible
+ArchitecturesInstallIn64BitMode=x64compatible
+UninstallDisplayName=FT8 Hunter
+UninstallDisplayIcon={app}\{#MyAppExeName}
+SetupLogging=yes
+
+[Languages]
+Name: "italian"; MessagesFile: "compiler:Languages\Italian.isl"
+
+[Tasks]
+Name: "desktopicon"; Description: "Crea un collegamento sul desktop"; GroupDescription: "Collegamenti:"; Flags: checkedonce
+
+[Files]
+Source: "..\publish\win-x64\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+
+[Icons]
+Name: "{autoprograms}\FT8 Hunter"; Filename: "{app}\{#MyAppExeName}"
+Name: "{autodesktop}\FT8 Hunter"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+
+[Run]
+Filename: "{app}\{#MyAppExeName}"; Description: "Avvia FT8 Hunter"; Flags: nowait postinstall skipifsilent
+
+[Code]
+function OmniRigInstalled(): Boolean;
+var
+  Dummy: String;
+begin
+  Result := RegQueryStringValue(HKCR, 'OmniRig.OmniRigX\CLSID', '', Dummy);
+end;
+
+function InitializeSetup(): Boolean;
+begin
+  Result := True;
+  if not OmniRigInstalled() then
+    MsgBox('OmniRig non risulta installato. FT8 Hunter verrà installato comunque, ma la comunicazione CAT con la radio richiede OmniRig configurato sul PC.', mbInformation, MB_OK);
+end;
