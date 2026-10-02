@@ -52,9 +52,29 @@ jobs:
           if (-not (Test-Path publish/win-x64/FT8Hunter_Test.exe)) { throw 'FT8Hunter_Test.exe non generato' }
           Get-Item publish/win-x64/FT8Hunter_Test.exe | Format-List Name,Length,LastWriteTime
 
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup -y --no-progress
+
+      - name: Build self-installing Setup
+        shell: pwsh
+        run: |
+          $iscc = 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe'
+          if (-not (Test-Path $iscc)) { throw 'ISCC.exe non trovato' }
+          & $iscc installer/FT8Hunter.iss
+          if (-not (Test-Path installer-output/FT8Hunter_Setup_v0.4.exe)) { throw 'FT8Hunter_Setup_v0.4.exe non generato' }
+          Get-Item installer-output/FT8Hunter_Setup_v0.4.exe | Format-List Name,Length,LastWriteTime
+
       - name: Upload EXE artifact
         uses: actions/upload-artifact@v4
         with:
           name: FT8Hunter_Test_win-x64
           path: publish/win-x64/FT8Hunter_Test.exe
+          if-no-files-found: error
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: FT8Hunter_Setup_v0.4
+          path: installer-output/FT8Hunter_Setup_v0.4.exe
           if-no-files-found: error
