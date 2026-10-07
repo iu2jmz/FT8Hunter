@@ -68,6 +68,20 @@ public partial class MainWindow
         };
 
         LogList.Items.Add(item);
-        LogList.ScrollIntoView(item);
+
+        // Evita che migliaia di righe e lo scroll continuo rubino CPU al decoder
+        // sui PC più lenti. Manteniamo una cronologia ampia ma finita.
+        if (LogList.Items.Count > 1200)
+        {
+            for (int i = 0; i < 200; i++)
+                LogList.Items.RemoveAt(0);
+        }
+
+        // Durante Auto QSO scorriamo solo sugli eventi operativi importanti.
+        if (_autoQsoState is AutoQsoState.Off or AutoQsoState.Complete ||
+            source is "RX" or "TX")
+        {
+            LogList.ScrollIntoView(item);
+        }
     }
 }
