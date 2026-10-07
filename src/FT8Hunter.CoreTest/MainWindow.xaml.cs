@@ -455,10 +455,12 @@ public partial class MainWindow : Window
         if (rxFrequency is < 100_000 or > 100_000_000)
             throw new InvalidOperationException("Frequenza RX non valida per lo split.");
 
+        int effectiveWaterfallTxHz = _txFreqLock ? _lockedTxWaterfallHz : waterfallTxHz;
+
         // RF desiderata = dial RX + posizione scelta sul waterfall.
         // Generando l'FT8 a 1500 Hz audio, il dial TX deve essere:
         // VFO B = RX + posizioneWaterfall - 1500.
-        long txDial = rxFrequency + waterfallTxHz - SplitTxAudioHz;
+        long txDial = rxFrequency + effectiveWaterfallTxHz - SplitTxAudioHz;
         if (txDial is < 100_000 or > 100_000_000)
             throw new InvalidOperationException("Frequenza TX calcolata fuori intervallo.");
 
@@ -467,12 +469,12 @@ public partial class MainWindow : Window
 
         _splitEnabled = true;
         _splitRxFrequency = rxFrequency;
-        _txWaterfallHz = waterfallTxHz;
+        _txWaterfallHz = effectiveWaterfallTxHz;
         SetSplitButtonState(true);
 
         long rfSignal = txDial + SplitTxAudioHz;
         TxSplitStatus.Text = $"TX VFO B: {txDial:N0} Hz";
-        AddLog("SPLIT", $"{reason}: A/RX {rxFrequency:N0} Hz | B/TX {txDial:N0} Hz | audio TX {SplitTxAudioHz} Hz | RF {rfSignal:N0} Hz");
+        AddLog("SPLIT", $"{reason}: A/RX {rxFrequency:N0} Hz | B/TX {txDial:N0} Hz | audio TX {SplitTxAudioHz} Hz | RF {rfSignal:N0} Hz{(_txFreqLock ? " | TX FREQ LOCK" : "")}");
 
         Dispatcher.BeginInvoke(async () =>
         {
