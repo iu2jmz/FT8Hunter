@@ -557,13 +557,26 @@ public partial class MainWindow : Window
 
     private void LogList_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
-        if (LogList.SelectedItem is not string line) return;
+        string? line = LogList.SelectedItem switch
+        {
+            string s => s,
+            ListBoxItem item => Convert.ToString(item.Content, CultureInfo.InvariantCulture),
+            _ => null
+        };
+
+        if (string.IsNullOrWhiteSpace(line)) return;
 
         Match match = Regex.Match(line, @"\b(\d{3,4})\s+Hz\b");
         if (!match.Success || !int.TryParse(match.Groups[1].Value, out int hz))
             return;
         if (hz is < 200 or > 3000)
             return;
+
+        if (_txFreqLock)
+        {
+            AddLog("LOCK", $"Doppio clic ignorato: TX FREQ bloccata a {_lockedTxWaterfallHz} Hz.");
+            return;
+        }
 
         TxPositionBox.Text = hz.ToString(CultureInfo.InvariantCulture);
         _txWaterfallHz = hz;
