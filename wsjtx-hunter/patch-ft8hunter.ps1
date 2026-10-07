@@ -51,12 +51,18 @@ Replace-Required "widgets/displaytext.cpp" `
      [Environment]::NewLine +
      '  insertText (message.trimmed (), bg, fg, decodedText.call (), dxCall);')
 
-Replace-Required "widgets/displaytext.cpp" `
-    ('    highlight_types types {Highlight::Tx};' + [Environment]::NewLine +
-     '    set_colours (m_config, &bg, &fg, types);') `
-    ('    highlight_types types {Highlight::Tx};' + [Environment]::NewLine +
-     '    set_colours (m_config, &bg, &fg, types);' + [Environment]::NewLine +
-     '    // FT8 Hunter: ogni riga realmente trasmessa da noi resta rossa e leggibile.' + [Environment]::NewLine +
-     '    bg = QColor {198, 40, 40};' + [Environment]::NewLine +
-     '    fg = QColor {255, 255, 255};')
+# Applica il rosso solo dentro displayTransmittedText(), senza toccare i colori RX.
+$displayPath = Join-Path $SourceDir "widgets/displaytext.cpp"
+$displayText = Get-Content $displayPath -Raw
+$txFunction = $displayText.IndexOf("void DisplayText::displayTransmittedText")
+if ($txFunction -lt 0) { throw "displayTransmittedText non trovato" }
+$txColourCall = $displayText.IndexOf("    set_colours (m_config, &bg, &fg, types);", $txFunction)
+if ($txColourCall -lt 0) { throw "set_colours TX non trovato" }
+$txInsertAt = $txColourCall + "    set_colours (m_config, &bg, &fg, types);".Length
+$txColours = [Environment]::NewLine +
+    "    // FT8 Hunter: ogni riga realmente trasmessa da noi resta rossa e leggibile." + [Environment]::NewLine +
+    "    bg = QColor {198, 40, 40};" + [Environment]::NewLine +
+    "    fg = QColor {255, 255, 255};"
+$displayText = $displayText.Insert($txInsertAt, $txColours)
+Set-Content -Path $displayPath -Value $displayText -Encoding utf8
 Write-Host "Applied FT8 Hunter $HunterVersion branding and decode colors to WSJT-X source."
