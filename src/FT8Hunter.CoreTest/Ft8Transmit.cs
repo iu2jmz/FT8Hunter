@@ -203,6 +203,7 @@ public partial class MainWindow
             _ft8WaveOut = null;
 
             try { if (_rig is not null) _rig.Tx = PM_RX; } catch { }
+            try { ApplyRxUsbLock(); } catch (Exception ex) { AddLog("LOCK", "Ripristino RX non riuscito: " + ex.Message); }
             AddLog(logTag, "PTT OFF");
             _txGate.Release();
         }
@@ -219,6 +220,7 @@ public partial class MainWindow
         try { _ft8TxCts?.Cancel(); } catch { }
         try { _ft8WaveOut?.Stop(); } catch { }
         try { if (_rig is not null) _rig.Tx = PM_RX; } catch { }
+        try { ApplyRxUsbLock(); } catch { }
 
         Ft8TxStatus.Text = "TX FT8 fermo";
         if (log) AddLog("TX", "STOP TX richiesto — PTT OFF.");
