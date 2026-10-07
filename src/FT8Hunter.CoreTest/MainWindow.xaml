@@ -11,7 +11,7 @@
 
         <StackPanel Grid.Row="0">
             <TextBlock FontSize="26" FontWeight="Bold" Text="FT8 Hunter — Core Test"/>
-            <TextBlock Margin="0,4,0,0" Foreground="DimGray" Text="Milestone 2: OmniRig + FT8 RX/TX interno"/>
+            <TextBlock Margin="0,4,0,0" Foreground="DimGray" Text="Milestone 3: FT8 RX/TX + primo QSO automatico"/>
         </StackPanel>
 
         <Grid Grid.Row="1" Margin="0,14,0,14">
@@ -74,7 +74,9 @@
                 <StackPanel>
                     <StackPanel Orientation="Horizontal">
                         <TextBlock VerticalAlignment="Center" Text="MY CALL:" Margin="0,0,8,0"/>
-                        <TextBox x:Name="MyCallBox" Width="110" Text="IU2JMZ"/>
+                        <TextBox x:Name="MyCallBox" Width="100" Text="IU2JMZ"/>
+                        <TextBlock VerticalAlignment="Center" Text="MY GRID:" Margin="12,0,8,0"/>
+                        <TextBox x:Name="MyGridBox" Width="70"/>
                         <Button Content="Self-test FT8" Margin="10,0,0,0" Padding="12,5" Click="SelfTest_Click"/>
                     </StackPanel>
 
@@ -117,7 +119,16 @@
 
                     <TextBlock x:Name="Ft8TxStatus" Margin="0,9,0,0" FontWeight="SemiBold" Text="TX FT8 fermo" TextWrapping="Wrap"/>
                     <TextBlock Margin="0,7,0,0" TextWrapping="Wrap" Foreground="DarkRed"
-                               Text="Sicurezza: il TX FT8 richiede SPLIT attivo, Audio TX selezionato e la spunta ABILITA TX FT8. Il PTT viene aperto circa 250 ms prima del prossimo slot UTC da 15 s e rilasciato automaticamente a fine trama."/>
+                               Text="Sicurezza: il TX FT8 richiede SPLIT attivo, Audio TX selezionato e la spunta ABILITA TX FT8. Il PTT viene aperto circa 250 ms prima dello slot UTC e rilasciato automaticamente a fine trama."/>
+
+                    <Separator Margin="0,12,0,10"/>
+                    <StackPanel Orientation="Horizontal">
+                        <Button Content="AVVIA CQ + AUTO QSO" Padding="14,6" Click="StartAutoQso_Click"/>
+                        <Button Content="STOP AUTO" Margin="8,0,0,0" Padding="14,6" Click="StopAutoQso_Click"/>
+                    </StackPanel>
+                    <TextBlock x:Name="AutoQsoStatus" Margin="0,9,0,0" FontWeight="SemiBold" Text="Auto QSO fermo" TextWrapping="Wrap"/>
+                    <TextBlock Margin="0,5,0,0" Foreground="DimGray" TextWrapping="Wrap"
+                               Text="Test automatico di un QSO: CQ → selezione della risposta più forte indirizzata a MY CALL → rapporto SNR → attesa R-report → RR73. Massimo 3 tentativi per fase; poi si ferma."/>
                 </StackPanel>
             </GroupBox>
         </Grid>
