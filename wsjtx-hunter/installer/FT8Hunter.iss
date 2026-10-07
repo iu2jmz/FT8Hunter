@@ -1,5 +1,5 @@
 #define MyAppName "FT8 Hunter"
-#define MyAppVersion "1.0.1"
+#define MyAppVersion "1.0.2"
 #define MyAppPublisher "IU2JMZ"
 #define MainExe "wsjtx.exe"
 
@@ -19,7 +19,7 @@ DefaultDirName={autopf}\FT8 Hunter
 DefaultGroupName=FT8 Hunter
 DisableProgramGroupPage=yes
 OutputDir=..\..\installer-output-wsjtx
-OutputBaseFilename=FT8Hunter_Setup_v1.0.1
+OutputBaseFilename=FT8Hunter_Setup_v1.0.2
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
