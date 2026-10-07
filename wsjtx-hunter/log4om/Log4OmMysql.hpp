@@ -11,6 +11,7 @@ struct Log4OmMysqlSettings
   QString database {"log4om2"};
   QString username;
   QString password;
+  bool verifyTlsCertificate {false};
   QString stationCallsign;
 };
 
