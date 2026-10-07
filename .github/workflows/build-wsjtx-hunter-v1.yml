@@ -74,9 +74,9 @@ jobs:
         shell: pwsh
         run: ./wsjtx-hunter/patch-ft8hunter.ps1 -SourceDir "./wsjtx-src" -HunterVersion "$env:HUNTER_VERSION"
 
-      - name: Cache Hamlib
+      - name: Restore Hamlib cache
         id: hamlib-cache
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: hamlib-prefix
           key: hamlib-windows-${{ env.HAMLIB_BRANCH }}-mingw64-v1
@@ -93,6 +93,13 @@ jobs:
           ./configure --prefix="${WORKSPACE}/hamlib-prefix" --enable-shared --disable-static --without-cxx-binding --without-readline CFLAGS="-DNDEBUG -O2 -fdata-sections -ffunction-sections" LDFLAGS="-Wl,--gc-sections"
           make -j$(nproc)
           make install-strip
+
+      - name: Save Hamlib cache immediately
+        if: steps.hamlib-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: hamlib-prefix
+          key: hamlib-windows-${{ env.HAMLIB_BRANCH }}-mingw64-v1
 
       - name: Download and install OmniRig for WSJT-X build support
         shell: pwsh
@@ -146,16 +153,14 @@ jobs:
             local target="$1"
             echo "Dependency scan: $target"
             ldd "$target" || true
-            ldd "$target" 2>/dev/null | awk '
-              {
-                for (i=1; i<=NF; ++i) {
-                  if ($i ~ /^\\/mingw64\\/bin\\/.*\\.dll$/) print $i
-                }
-              }' | sort -u | while read -r dep; do
-                if [ -f "$dep" ]; then
-                  cp -f "$dep" "${WORKSPACE}/stage-main/bin/"
-                fi
-              done
+            ldd "$target" 2>/dev/null \
+              | sed -n 's#.*=> \(/mingw64/bin/[^ ]*\.dll\).*#\1#p' \
+              | sort -u \
+              | while read -r dep; do
+                  if [ -f "$dep" ]; then
+                    cp -f "$dep" "${WORKSPACE}/stage-main/bin/"
+                  fi
+                done
           }
 
           copy_mingw_deps /mingw64/share/qt5/plugins/sqldrivers/qsqlmysql.dll
