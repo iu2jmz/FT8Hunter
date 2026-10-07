@@ -477,7 +477,7 @@ public partial class MainWindow
             MyGrid = myGrid,
             HisCall = hisCall ?? string.Empty,
             DecoderDepth = DecoderDepth.Normal,
-            MaxCandidates = focused ? 36 : 75,
+            MaxCandidates = focused ? 36 : 50,
             MinSyncDb = 2.1f,
             ApDecode = !string.IsNullOrWhiteSpace(myCall),
             QsoProgress = progress,
@@ -489,7 +489,7 @@ public partial class MainWindow
 
         AddLog("PERF", focused
             ? $"QSO focalizzato su {hisCall} @ {qsoFrequencyHz:F0} Hz | NORMAL | 36 candidati | ±220 Hz."
-            : "CQ Auto QSO: decoder NORMAL completo | 75 candidati.");
+            : "CQ Auto QSO: decoder NORMAL completo | 50 candidati.");
     }
 
     private void EnterAutoQsoPerformanceMode()
