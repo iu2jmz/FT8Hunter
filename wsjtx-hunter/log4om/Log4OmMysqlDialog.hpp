@@ -24,5 +24,6 @@ private:
   QLineEdit * database_;
   QLineEdit * username_;
   QLineEdit * password_;
+  QCheckBox * verifyTlsCertificate_;
   QLineEdit * station_;
 };
