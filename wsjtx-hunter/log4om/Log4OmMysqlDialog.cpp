@@ -20,6 +20,7 @@ Log4OmMysqlDialog::Log4OmMysqlDialog (QWidget * parent)
   , database_ {new QLineEdit {this}}
   , username_ {new QLineEdit {this}}
   , password_ {new QLineEdit {this}}
+  , verifyTlsCertificate_ {new QCheckBox {tr ("Verifica certificato TLS del server"), this}}
   , station_ {new QLineEdit {this}}
 {
   setWindowTitle (tr ("FT8 Hunter - Log4OM MySQL"));
@@ -35,12 +36,14 @@ Log4OmMysqlDialog::Log4OmMysqlDialog (QWidget * parent)
   form->addRow (tr ("Database:"), database_);
   form->addRow (tr ("Utente:"), username_);
   form->addRow (tr ("Password:"), password_);
+  form->addRow (tr ("TLS:"), verifyTlsCertificate_);
   form->addRow (tr ("Station callsign:"), station_);
 
   auto * note = new QLabel {
     tr ("FT8 Hunter accede al database in sola lettura. La tabella Log4OM attesa e' 'log'.\n"
         "Per un database su un altro PC, MySQL deve accettare connessioni dalla rete locale "
-        "e il firewall deve consentire la porta configurata."), this};
+        "e il firewall deve consentire la porta configurata.\n"
+        "Lascia disattivata la verifica TLS se il server Log4OM usa un certificato locale/self-signed."), this};
   note->setWordWrap (true);
 
   auto * testButton = new QPushButton {tr ("Test connessione e lettura"), this};
@@ -72,6 +75,7 @@ void Log4OmMysqlDialog::load ()
   database_->setText (s.database);
   username_->setText (s.username);
   password_->setText (s.password);
+  verifyTlsCertificate_->setChecked (s.verifyTlsCertificate);
   station_->setText (s.stationCallsign);
 }
 
@@ -84,6 +88,7 @@ void Log4OmMysqlDialog::save ()
   s.database = database_->text ().trimmed ();
   s.username = username_->text ().trimmed ();
   s.password = password_->text ();
+  s.verifyTlsCertificate = verifyTlsCertificate_->isChecked ();
   s.stationCallsign = station_->text ().trimmed ().toUpper ();
   Log4OmMysql::saveSettings (s);
 }
@@ -97,6 +102,7 @@ void Log4OmMysqlDialog::test ()
   s.database = database_->text ().trimmed ();
   s.username = username_->text ().trimmed ();
   s.password = password_->text ();
+  s.verifyTlsCertificate = verifyTlsCertificate_->isChecked ();
   s.stationCallsign = station_->text ().trimmed ().toUpper ();
 
   auto const r = Log4OmMysql::testConnection (s);
