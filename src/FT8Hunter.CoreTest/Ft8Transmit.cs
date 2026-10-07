@@ -9,6 +9,8 @@ namespace FT8Hunter.CoreTest;
 
 public partial class MainWindow
 {
+    private const int Ft8PreKeyMs = 250;
+
     private CancellationTokenSource? _ft8TxCts;
     private WaveOutEvent? _ft8WaveOut;
     private readonly SemaphoreSlim _txGate = new(1, 1);
@@ -62,7 +64,7 @@ public partial class MainWindow
         {
             StopFt8TransmitInternal(log: false);
             _ft8TxCts = new CancellationTokenSource();
-            await SendFt8MessageAsync(message, _ft8TxCts.Token, "TX", requiredParity: null);
+            await SendFt8MessageAsync(message, _ft8TxCts.Token, "TX", requiredParity: null, targetSlotUtc: null);
             Ft8TxStatus.Text = "TX FT8 completato";
         }
         catch (OperationCanceledException)
@@ -126,7 +128,8 @@ public partial class MainWindow
         string message,
         CancellationToken ct,
         string logTag,
-        int? requiredParity)
+        int? requiredParity,
+        DateTimeOffset? targetSlotUtc)
     {
         if (!ValidateFt8TxPrerequisites(showMessage: false))
             throw new InvalidOperationException("Prerequisiti TX FT8 non soddisfatti.");
@@ -141,9 +144,21 @@ public partial class MainWindow
 
         try
         {
-            int position = ParseTxPosition();
+            DateTimeOffset prepStart = DateTimeOffset.UtcNow;
+
+            int position = _txFreqLock ? _lockedTxWaterfallHz : ParseTxPosition();
             long rx = ReadRxFrequency();
-            ApplyRigSplit(rx, position, $"Preparazione {logTag}");
+
+            // Con entrambi i lock il 7300 è già predisposto: evitiamo inutili
+            // riscritture CI-V proprio nel percorso critico tra decode e risposta.
+            if (_txFreqLock && _rxUsbLock && _splitEnabled)
+            {
+                AddLog("SCHED", $"FAST PREP: A/RX e B/TX già bloccati | TX audio position {position} Hz.");
+            }
+            else
+            {
+                ApplyRigSplit(rx, position, $"Preparazione {logTag}");
+            }
 
             using var encoder = new EncoderEngine();
             float[] audio12k = encoder.Encode(message, DigitalMode.FT8, new EncoderOptions
@@ -168,26 +183,73 @@ public partial class MainWindow
             var playbackStopped = new TaskCompletionSource<StoppedEventArgs>(TaskCreationOptions.RunContinuationsAsynchronously);
             _ft8WaveOut.PlaybackStopped += (_, args) => playbackStopped.TrySetResult(args);
 
-            DateTimeOffset slot = NextFt8Slot(DateTimeOffset.UtcNow, requiredParity);
-            DateTimeOffset pttAt = slot.AddMilliseconds(-250);
+            DateTimeOffset prepDone = DateTimeOffset.UtcNow;
+            DateTimeOffset slot;
+
+            if (targetSlotUtc.HasValue)
+            {
+                slot = targetSlotUtc.Value.ToUniversalTime();
+
+                // Il target nasce dal periodo RX (windowStart + 15 s). Se la
+                // preparazione ha consumato anche il pre-key, NON partiamo in ritardo:
+                // avanziamo di 30 s, conservando la stessa parità TX.
+                while (prepDone >= slot.AddMilliseconds(-Ft8PreKeyMs))
+                {
+                    DateTimeOffset missed = slot;
+                    slot = slot.AddSeconds(30);
+                    AddLog("SCHED",
+                        $"TARGET {missed:HH:mm:ss.fff} perso dopo PREP ({prepDone:HH:mm:ss.fff}); " +
+                        $"nessuna TX fuori slot, nuovo target {slot:HH:mm:ss.fff} UTC.");
+                }
+            }
+            else
+            {
+                slot = NextFt8Slot(prepDone, requiredParity);
+            }
+
+            if (requiredParity.HasValue && GetFt8SlotParity(slot) != requiredParity.Value)
+            {
+                slot = slot.AddSeconds(15);
+                if (GetFt8SlotParity(slot) != requiredParity.Value)
+                    throw new InvalidOperationException("Impossibile allineare la parità FT8 richiesta.");
+            }
+
+            DateTimeOffset pttAt = slot.AddMilliseconds(-Ft8PreKeyMs);
+            double prepMs = (prepDone - prepStart).TotalMilliseconds;
+            double marginMs = (slot - prepDone).TotalMilliseconds;
 
             Ft8TxStatus.Text = $"{logTag} armato — slot {slot:HH:mm:ss} UTC";
-            AddLog(logTag, $"Armato: '{message}' | {txDevice.Display} | {levelPercent}% | slot {slot:HH:mm:ss} UTC | parity {GetFt8SlotParity(slot)}");
+            AddLog("SCHED",
+                $"PREP {prepMs:F0} ms | TARGET TX {slot:HH:mm:ss.fff} UTC | margine {marginMs:F0} ms | " +
+                $"PTT {pttAt:HH:mm:ss.fff} | parity {GetFt8SlotParity(slot)}");
+            AddLog(logTag, $"Armato: '{message}' | {txDevice.Display} | {levelPercent}%");
 
             TimeSpan waitPtt = pttAt - DateTimeOffset.UtcNow;
             if (waitPtt > TimeSpan.Zero)
                 await Task.Delay(waitPtt, ct);
 
+            DateTimeOffset pttActual = DateTimeOffset.UtcNow;
             _rig!.Tx = PM_TX;
-            AddLog(logTag, "PTT ON — pre-key 250 ms");
+            AddLog("SCHED", $"PTT ON {pttActual:HH:mm:ss.fff} UTC | target audio {slot:HH:mm:ss.fff}");
 
             TimeSpan waitAudio = slot - DateTimeOffset.UtcNow;
             if (waitAudio > TimeSpan.Zero)
                 await Task.Delay(waitAudio, ct);
 
+            // Ultima barriera di sicurezza: non iniziamo una trama se lo scheduler
+            // è già oltre la finestra per un ritardo anomalo del sistema.
+            DateTimeOffset audioActual = DateTimeOffset.UtcNow;
+            if ((audioActual - slot).TotalMilliseconds > 180)
+            {
+                AddLog("SCHED",
+                    $"ABORT: audio sarebbe partito con {(audioActual - slot).TotalMilliseconds:F0} ms di ritardo.");
+                throw new OperationCanceledException("Slot FT8 perso: TX fuori sincronismo evitata.", ct);
+            }
+
             Ft8TxStatus.Text = $"TRASMISSIONE — {message}";
             AddTxMessageLog(slot, message);
-            AddLog(logTag, $"Audio FT8 START {DateTimeOffset.UtcNow:HH:mm:ss.fff} UTC @ {SplitTxAudioHz} Hz");
+            AddLog("SCHED",
+                $"AUDIO START {audioActual:HH:mm:ss.fff} UTC | errore {(audioActual - slot).TotalMilliseconds:+0;-0;0} ms");
             _ft8WaveOut.Play();
 
             StoppedEventArgs stopped = await playbackStopped.Task.WaitAsync(ct);
