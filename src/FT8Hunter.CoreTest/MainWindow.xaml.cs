@@ -815,7 +815,7 @@ public partial class MainWindow : Window
             _waveIn.StartRecording();
 
             Ft8Status.Text = $"FT8 Engine attivo — {dev.Display}";
-            AddLog("FT8", $"RX FT8 avviata; audio sample-clock UTC | early decode 88% | buffer 50 ms | AP {(string.IsNullOrWhiteSpace(rtMyCall) ? "OFF" : "ON")} per {rtMyCall}.");
+            AddLog("FT8", $"RX FT8 avviata; audio sample-clock UTC | guard DT 2% | early decode 88% | buffer 50 ms | AP {(string.IsNullOrWhiteSpace(rtMyCall) ? "OFF" : "ON")} per {rtMyCall}.");
         }
         catch (Exception ex)
         {
