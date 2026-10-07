@@ -74,7 +74,7 @@ public partial class MainWindow
         AutoQsoStatus.Text = "Auto QSO: invio CQ...";
         AddLog("AUTO", $"START — {cq}");
 
-        await AutoSendAsync(cq, AutoQsoState.WaitingCaller, resetAttempts: true);
+        await AutoSendAsync(cq, AutoQsoState.WaitingCaller, resetAttempts: true, targetSlotUtc: null);
     }
 
     private void StopAutoQso_Click(object sender, RoutedEventArgs e)
@@ -166,11 +166,16 @@ public partial class MainWindow
             string report = FormatFt8Report(caller.Result.Snr);
             string reply = $"{dx} {myCall} {report}";
 
+            DateTimeOffset decodeAt = DateTimeOffset.UtcNow;
+            DateTimeOffset replyTarget = windowStart.AddSeconds(15);
+            double targetMarginMs = (replyTarget - decodeAt).TotalMilliseconds;
+
             AddLog("AUTO", $"LATE/VALID CALLER: {dx} | SNR {caller.Result.Snr:+#;-#;0} dB | RX {callerHz} Hz | TX {(_txFreqLock ? _lockedTxWaterfallHz : callerHz)} Hz → '{reply}'");
-            AutoQsoStatus.Text = $"QSO con {dx}: risposta valida, invio rapporto {report}";
+            AddLog("SCHED", $"DECODE {decodeAt:HH:mm:ss.fff} UTC | RX SLOT {windowStart:HH:mm:ss.fff} | TARGET RISPOSTA {replyTarget:HH:mm:ss.fff} | margine {targetMarginMs:F0} ms");
+            AutoQsoStatus.Text = $"QSO con {dx}: risposta valida, target {replyTarget:HH:mm:ss} UTC";
 
             _ = ReplacePendingAutoTxAsync(reply, AutoQsoState.WaitingRReport, resetAttempts: true,
-                $"decode valido di {dx}");
+                replyTarget, $"decode valido di {dx}");
             return;
         }
 
@@ -197,9 +202,14 @@ public partial class MainWindow
                 CancelRetryTimer();
 
                 string rr73 = $"{dx} {myCall} RR73";
+                DateTimeOffset decodeAt = DateTimeOffset.UtcNow;
+                DateTimeOffset replyTarget = windowStart.AddSeconds(15);
+                double targetMarginMs = (replyTarget - decodeAt).TotalMilliseconds;
+
                 AddLog("AUTO", $"LATE/VALID R-report da {dx}: {payload} → '{rr73}'");
-                AutoQsoStatus.Text = $"QSO con {dx}: R-report {payload}, invio RR73";
-                _ = ReplacePendingFinalTxAsync(rr73, dx, $"R-report {payload} ricevuto");
+                AddLog("SCHED", $"DECODE {decodeAt:HH:mm:ss.fff} UTC | RX SLOT {windowStart:HH:mm:ss.fff} | TARGET RR73 {replyTarget:HH:mm:ss.fff} | margine {targetMarginMs:F0} ms");
+                AutoQsoStatus.Text = $"QSO con {dx}: R-report {payload}, target {replyTarget:HH:mm:ss} UTC";
+                _ = ReplacePendingFinalTxAsync(rr73, dx, replyTarget, $"R-report {payload} ricevuto");
                 return;
             }
 
@@ -221,6 +231,7 @@ public partial class MainWindow
         string message,
         AutoQsoState stateAfterTx,
         bool resetAttempts,
+        DateTimeOffset targetSlotUtc,
         string reason)
     {
         CancelRetryTimer();
@@ -234,10 +245,10 @@ public partial class MainWindow
         if (_autoQsoCts is null || _autoQsoState == AutoQsoState.Off)
             return;
 
-        await AutoSendAsync(message, stateAfterTx, resetAttempts);
+        await AutoSendAsync(message, stateAfterTx, resetAttempts, targetSlotUtc);
     }
 
-    private async Task ReplacePendingFinalTxAsync(string message, string dx, string reason)
+    private async Task ReplacePendingFinalTxAsync(string message, string dx, DateTimeOffset targetSlotUtc, string reason)
     {
         CancelRetryTimer();
         CancelActiveAutoTx(reason);
@@ -248,7 +259,7 @@ public partial class MainWindow
         if (_autoQsoCts is null || _autoQsoState == AutoQsoState.Off)
             return;
 
-        await SendFinalRr73Async(message, dx);
+        await SendFinalRr73Async(message, dx, targetSlotUtc);
     }
 
     private void CancelActiveAutoTx(string reason)
@@ -264,7 +275,7 @@ public partial class MainWindow
         catch { }
     }
 
-    private async Task AutoSendAsync(string message, AutoQsoState stateAfterTx, bool resetAttempts)
+    private async Task AutoSendAsync(string message, AutoQsoState stateAfterTx, bool resetAttempts, DateTimeOffset? targetSlotUtc)
     {
         if (_autoQsoCts is null)
             return;
@@ -285,7 +296,7 @@ public partial class MainWindow
 
         try
         {
-            DateTimeOffset slot = await SendFt8MessageAsync(message, txCts.Token, "AUTO", _autoTxParity);
+            DateTimeOffset slot = await SendFt8MessageAsync(message, txCts.Token, "AUTO", _autoTxParity, targetSlotUtc);
             _autoLastTxSlot = slot;
             _autoTxParity ??= GetFt8SlotParity(slot);
 
@@ -314,7 +325,7 @@ public partial class MainWindow
         }
     }
 
-    private async Task SendFinalRr73Async(string message, string dx)
+    private async Task SendFinalRr73Async(string message, string dx, DateTimeOffset? targetSlotUtc)
     {
         if (_autoQsoCts is null || _autoTxInProgress)
             return;
@@ -328,7 +339,7 @@ public partial class MainWindow
 
         try
         {
-            DateTimeOffset slot = await SendFt8MessageAsync(message, txCts.Token, "AUTO", _autoTxParity);
+            DateTimeOffset slot = await SendFt8MessageAsync(message, txCts.Token, "AUTO", _autoTxParity, targetSlotUtc);
             _autoLastTxSlot = slot;
             FinishAutoQso(dx, "RR73 trasmesso");
         }
@@ -394,7 +405,7 @@ public partial class MainWindow
             if (ReferenceEquals(_autoRetryCts, retryCts))
                 _autoRetryCts = null;
 
-            await AutoSendAsync(message, state, resetAttempts: false);
+            await AutoSendAsync(message, state, resetAttempts: false, targetSlotUtc: null);
         }
         catch (OperationCanceledException)
         {
