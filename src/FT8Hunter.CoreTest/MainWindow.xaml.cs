@@ -398,7 +398,15 @@ public partial class MainWindow : Window
             _lockedTxWaterfallHz = position;
             _txWaterfallHz = position;
             _txFreqLock = true;
-            AddLog("LOCK", $"TX FREQ ON — posizione TX bloccata a {position} Hz.");
+
+            if (_splitEnabled)
+            {
+                long rx = ReadRxFrequency();
+                _splitRxFrequency = rx;
+                ApplyRigSplit(rx, position, "LOCK TX FREQ attivato");
+            }
+
+            AddLog("LOCK", $"TX FREQ ON — posizione TX bloccata a {position} Hz e VFO B predisposto.");
         }
         catch (Exception ex)
         {
