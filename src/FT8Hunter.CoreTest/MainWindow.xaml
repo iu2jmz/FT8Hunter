@@ -48,6 +48,8 @@
                         <Button x:Name="DataButton" Content="DATA" Width="72" Margin="8,0,0,0" Padding="12,5" Click="DataMode_Click"/>
                         <ToggleButton x:Name="SplitButton" Content="SPLIT" Width="82" Margin="8,0,0,0" Padding="12,5"
                                       Checked="SplitButton_Checked" Unchecked="SplitButton_Unchecked"/>
+                        <ToggleButton x:Name="RxModeLockButton" Content="LOCK RX" Width="92" Margin="8,0,0,0" Padding="12,5"
+                                      Checked="RxModeLock_Checked" Unchecked="RxModeLock_Unchecked"/>
                     </StackPanel>
 
                     <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
@@ -59,7 +61,7 @@
                     </StackPanel>
 
                     <TextBlock Margin="0,7,0,0" TextWrapping="Wrap" Foreground="DimGray"
-                               Text="Con SPLIT attivo: VFO A = RX; VFO B = TX in USB-D. Il tono FT8 TX interno resta a 1500 Hz e il VFO B segue la posizione TX. Doppio clic su un decode per usare la sua frequenza audio."/>
+                               Text="Con SPLIT attivo: VFO A = RX; VFO B = TX in USB-D. LOCK RX mantiene forzatamente il VFO A in USB (DATA OFF), anche dopo aggiornamenti split o trasmissioni. Il VFO B resta USB-D."/>
 
                     <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
                         <CheckBox x:Name="ArmPtt" Content="ABILITA TEST PTT" VerticalAlignment="Center"/>
