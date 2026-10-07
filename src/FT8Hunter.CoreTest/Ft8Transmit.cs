@@ -11,6 +11,7 @@ public partial class MainWindow
 {
     private CancellationTokenSource? _ft8TxCts;
     private WaveOutEvent? _ft8WaveOut;
+    private readonly SemaphoreSlim _txGate = new(1, 1);
 
     private void RefreshTxAudio_Click(object sender, RoutedEventArgs e) => RefreshTxAudioDevices();
 
@@ -47,25 +48,8 @@ public partial class MainWindow
 
     private async void TransmitFt8_Click(object sender, RoutedEventArgs e)
     {
-        if (ArmFt8Tx.IsChecked != true)
-        {
-            AddLog("TX", "Bloccato: abilita prima ABILITA TX FT8.");
+        if (!ValidateFt8TxPrerequisites(showMessage: true))
             return;
-        }
-
-        if (!_splitEnabled)
-        {
-            AddLog("TX", "Bloccato: per questo test attiva prima SPLIT.");
-            MessageBox.Show("Per il primo test TX attiva SPLIT. VFO A resterà in RX e VFO B verrà usato per il TX.", "FT8 TX", MessageBoxButton.OK, MessageBoxImage.Information);
-            return;
-        }
-
-        if (AudioTxCombo.SelectedItem is not TxAudioItem txDevice)
-        {
-            RefreshTxAudioDevices();
-            AddLog("TX", "Seleziona l'uscita Audio TX del collegamento USB della radio.");
-            return;
-        }
 
         string message = TxMessageBox.Text.Trim().ToUpperInvariant();
         if (string.IsNullOrWhiteSpace(message))
@@ -74,22 +58,92 @@ public partial class MainWindow
             return;
         }
 
+        try
+        {
+            StopFt8TransmitInternal(log: false);
+            _ft8TxCts = new CancellationTokenSource();
+            await SendFt8MessageAsync(message, _ft8TxCts.Token, "TX", requiredParity: null);
+            Ft8TxStatus.Text = "TX FT8 completato";
+        }
+        catch (OperationCanceledException)
+        {
+            Ft8TxStatus.Text = "TX FT8 annullato";
+            AddLog("TX", "Trasmissione annullata.");
+        }
+        catch (Exception ex)
+        {
+            Ft8TxStatus.Text = "TX FT8: errore";
+            AddLog("TX", "ERRORE: " + ex.Message);
+        }
+        finally
+        {
+            _ft8TxCts?.Dispose();
+            _ft8TxCts = null;
+        }
+    }
+
+    private bool ValidateFt8TxPrerequisites(bool showMessage)
+    {
+        if (ArmFt8Tx.IsChecked != true)
+        {
+            AddLog("TX", "Bloccato: abilita prima ABILITA TX FT8.");
+            return false;
+        }
+
+        if (!_splitEnabled)
+        {
+            AddLog("TX", "Bloccato: attiva prima SPLIT.");
+            if (showMessage)
+                MessageBox.Show("Attiva SPLIT. VFO A resterà in RX e VFO B verrà usato per il TX.", "FT8 TX", MessageBoxButton.OK, MessageBoxImage.Information);
+            return false;
+        }
+
+        if (AudioTxCombo.SelectedItem is not TxAudioItem)
+        {
+            RefreshTxAudioDevices();
+            AddLog("TX", "Seleziona l'uscita Audio TX del collegamento USB della radio.");
+            return false;
+        }
+
         if (!int.TryParse(TxLevelBox.Text.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out int levelPercent) ||
             levelPercent is < 1 or > 90)
         {
             AddLog("TX", "Livello TX non valido: usa un valore tra 1 e 90%.");
-            return;
+            return false;
         }
+
+        try { EnsureRig(); }
+        catch (Exception ex)
+        {
+            AddLog("TX", "Bloccato: " + ex.Message);
+            return false;
+        }
+
+        return true;
+    }
+
+    private async Task<DateTimeOffset> SendFt8MessageAsync(
+        string message,
+        CancellationToken ct,
+        string logTag,
+        int? requiredParity)
+    {
+        if (!ValidateFt8TxPrerequisites(showMessage: false))
+            throw new InvalidOperationException("Prerequisiti TX FT8 non soddisfatti.");
+
+        if (AudioTxCombo.SelectedItem is not TxAudioItem txDevice)
+            throw new InvalidOperationException("Uscita Audio TX non selezionata.");
+
+        if (!int.TryParse(TxLevelBox.Text.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out int levelPercent))
+            throw new InvalidOperationException("Livello TX non valido.");
+
+        await _txGate.WaitAsync(ct);
 
         try
         {
-            EnsureRig();
-            StopFt8TransmitInternal(log: false);
-
-            // Ricalcola il VFO B sulla posizione TX corrente e ribadisce USB-D.
             int position = ParseTxPosition();
             long rx = ReadRxFrequency();
-            ApplyRigSplit(rx, position, "Preparazione TX FT8");
+            ApplyRigSplit(rx, position, $"Preparazione {logTag}");
 
             using var encoder = new EncoderEngine();
             float[] audio12k = encoder.Encode(message, DigitalMode.FT8, new EncoderOptions
@@ -97,9 +151,6 @@ public partial class MainWindow
                 FrequencyHz = SplitTxAudioHz,
                 Amplitude = levelPercent / 100.0
             });
-
-            _ft8TxCts = new CancellationTokenSource();
-            CancellationToken ct = _ft8TxCts.Token;
 
             var mono = new ArraySampleProvider(audio12k, 12_000);
             ISampleProvider stereo = new MonoToStereoSampleProvider(mono);
@@ -117,45 +168,33 @@ public partial class MainWindow
             var playbackStopped = new TaskCompletionSource<StoppedEventArgs>(TaskCreationOptions.RunContinuationsAsynchronously);
             _ft8WaveOut.PlaybackStopped += (_, args) => playbackStopped.TrySetResult(args);
 
-            DateTimeOffset now = DateTimeOffset.UtcNow;
-            DateTimeOffset slot = NextFt8Slot(now);
+            DateTimeOffset slot = NextFt8Slot(DateTimeOffset.UtcNow, requiredParity);
             DateTimeOffset pttAt = slot.AddMilliseconds(-250);
 
-            Ft8TxStatus.Text = $"TX armato — prossimo slot {slot:HH:mm:ss} UTC";
-            AddLog("TX", $"Armato: '{message}' | {txDevice.Display} | {levelPercent}% | slot {slot:HH:mm:ss} UTC");
+            Ft8TxStatus.Text = $"{logTag} armato — slot {slot:HH:mm:ss} UTC";
+            AddLog(logTag, $"Armato: '{message}' | {txDevice.Display} | {levelPercent}% | slot {slot:HH:mm:ss} UTC | parity {GetFt8SlotParity(slot)}");
 
             TimeSpan waitPtt = pttAt - DateTimeOffset.UtcNow;
             if (waitPtt > TimeSpan.Zero)
                 await Task.Delay(waitPtt, ct);
 
-            // PTT anticipato per consentire al 7300 di commutare prima dell'audio.
             _rig!.Tx = PM_TX;
-            AddLog("TX", "PTT ON — pre-key 250 ms");
+            AddLog(logTag, "PTT ON — pre-key 250 ms");
 
             TimeSpan waitAudio = slot - DateTimeOffset.UtcNow;
             if (waitAudio > TimeSpan.Zero)
                 await Task.Delay(waitAudio, ct);
 
             Ft8TxStatus.Text = $"TRASMISSIONE — {message}";
-            AddLog("TX", $"Audio FT8 START {DateTimeOffset.UtcNow:HH:mm:ss.fff} UTC @ {SplitTxAudioHz} Hz");
+            AddLog(logTag, $"Audio FT8 START {DateTimeOffset.UtcNow:HH:mm:ss.fff} UTC @ {SplitTxAudioHz} Hz");
             _ft8WaveOut.Play();
 
             StoppedEventArgs stopped = await playbackStopped.Task.WaitAsync(ct);
             if (stopped.Exception is not null)
                 throw stopped.Exception;
 
-            AddLog("TX", $"Audio FT8 END {DateTimeOffset.UtcNow:HH:mm:ss.fff} UTC");
-            Ft8TxStatus.Text = "TX FT8 completato";
-        }
-        catch (OperationCanceledException)
-        {
-            Ft8TxStatus.Text = "TX FT8 annullato";
-            AddLog("TX", "Trasmissione annullata.");
-        }
-        catch (Exception ex)
-        {
-            Ft8TxStatus.Text = "TX FT8: errore";
-            AddLog("TX", "ERRORE: " + ex.Message);
+            AddLog(logTag, $"Audio FT8 END {DateTimeOffset.UtcNow:HH:mm:ss.fff} UTC");
+            return slot;
         }
         finally
         {
@@ -164,15 +203,14 @@ public partial class MainWindow
             _ft8WaveOut = null;
 
             try { if (_rig is not null) _rig.Tx = PM_RX; } catch { }
-            AddLog("TX", "PTT OFF");
-
-            _ft8TxCts?.Dispose();
-            _ft8TxCts = null;
+            AddLog(logTag, "PTT OFF");
+            _txGate.Release();
         }
     }
 
     private void StopTransmitFt8_Click(object sender, RoutedEventArgs e)
     {
+        StopAutoQsoInternal("STOP TX manuale", false);
         StopFt8TransmitInternal(log: true);
     }
 
@@ -186,11 +224,21 @@ public partial class MainWindow
         if (log) AddLog("TX", "STOP TX richiesto — PTT OFF.");
     }
 
-    private static DateTimeOffset NextFt8Slot(DateTimeOffset nowUtc)
+    private static DateTimeOffset NextFt8Slot(DateTimeOffset nowUtc, int? requiredParity)
     {
         long slotTicks = TimeSpan.FromSeconds(15).Ticks;
-        long nextTicks = ((nowUtc.UtcTicks / slotTicks) + 1) * slotTicks;
-        return new DateTimeOffset(nextTicks, TimeSpan.Zero);
+        long slotIndex = (nowUtc.UtcTicks / slotTicks) + 1;
+
+        if (requiredParity.HasValue && (slotIndex & 1L) != requiredParity.Value)
+            slotIndex++;
+
+        return new DateTimeOffset(slotIndex * slotTicks, TimeSpan.Zero);
+    }
+
+    private static int GetFt8SlotParity(DateTimeOffset slotUtc)
+    {
+        long slotTicks = TimeSpan.FromSeconds(15).Ticks;
+        return (int)((slotUtc.UtcTicks / slotTicks) & 1L);
     }
 
     private sealed record TxAudioItem(int Index, string Display);
