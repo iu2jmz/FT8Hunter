@@ -41,6 +41,8 @@ public partial class MainWindow : Window
     private long _splitRxFrequency;
     private int _txWaterfallHz = SplitTxAudioHz;
     private bool _ignoreSplitToggle;
+    private bool _rxUsbLock;
+    private bool _ignoreRxLockToggle;
 
     public MainWindow()
     {
@@ -211,10 +213,10 @@ public partial class MainWindow : Window
         try
         {
             EnsureRig();
-            _rig!.Mode = PM_SSB_U;
-            AddLog("RADIO", "Modo RX richiesto: USB");
+            SelectRxVfoAIfPossible();
+            SetIcom7300UsbData(false);
+            AddLog("RADIO", "VFO A / RX richiesto: USB (DATA OFF)");
 
-            // In split il VFO B resta sempre DATA per la trasmissione FT8.
             if (_splitEnabled)
                 ForceTxVfoDataMode();
 
@@ -228,15 +230,82 @@ public partial class MainWindow : Window
         try
         {
             EnsureRig();
-            _rig!.Mode = PM_DIG_U;
+
+            if (_rxUsbLock)
+            {
+                AddLog("LOCK", "DATA ignorato sul VFO A: LOCK RX attivo. A resta USB; B resta USB-D.");
+                ApplyRxUsbLock();
+                return;
+            }
+
+            SelectRxVfoAIfPossible();
+            SetIcom7300UsbData(true);
             AddLog("RADIO", "Modo RX richiesto: DATA / USB-D");
-
-            if (_splitEnabled)
-                ForceTxVfoDataMode();
-
-            VerifyModeLater(PM_DIG_U, "DATA / USB-D");
+            VerifyModeLater(PM_SSB_U, "USB-D / DATA ON");
         }
         catch (Exception ex) { AddLog("RADIO", "ERRORE DATA: " + ex.Message); }
+    }
+
+    private void RxModeLock_Checked(object sender, RoutedEventArgs e)
+    {
+        if (_ignoreRxLockToggle) return;
+
+        try
+        {
+            EnsureRig();
+            _rxUsbLock = true;
+            ApplyRxUsbLock();
+            SetRxLockButtonState(true);
+            AddLog("LOCK", "ON — VFO A bloccato in USB; VFO B riservato al TX USB-D.");
+        }
+        catch (Exception ex)
+        {
+            _rxUsbLock = false;
+            SetRxLockButtonState(false);
+            AddLog("LOCK", "ERRORE: " + ex.Message);
+        }
+    }
+
+    private void RxModeLock_Unchecked(object sender, RoutedEventArgs e)
+    {
+        if (_ignoreRxLockToggle) return;
+        _rxUsbLock = false;
+        SetRxLockButtonState(false);
+        AddLog("LOCK", "OFF — modo RX non più forzato.");
+    }
+
+    private void SetRxLockButtonState(bool enabled)
+    {
+        _ignoreRxLockToggle = true;
+        RxModeLockButton.IsChecked = enabled;
+        RxModeLockButton.Content = enabled ? "LOCK ON" : "LOCK RX";
+        RxModeLockButton.FontWeight = enabled ? FontWeights.Bold : FontWeights.Normal;
+        _ignoreRxLockToggle = false;
+    }
+
+    private void SelectRxVfoAIfPossible()
+    {
+        EnsureRig();
+        int writable = GetWritableParams();
+        if ((writable & PM_VFOA) != 0)
+        {
+            try { _rig!.Vfo = PM_VFOA; }
+            catch { }
+        }
+    }
+
+    private void ApplyRxUsbLock()
+    {
+        if (!_rxUsbLock || _rig is null) return;
+
+        if (_splitEnabled)
+        {
+            ForceTxVfoDataMode();
+            return;
+        }
+
+        SelectRxVfoAIfPossible();
+        SetIcom7300UsbData(false);
     }
 
     private void VerifyModeLater(int expectedMode, string requestedName)
@@ -394,21 +463,25 @@ public partial class MainWindow : Window
         int writable = GetWritableParams();
         bool setOnB = false;
 
-        // Stessa strategia usata dal backend OmniRig di WSJT-X/WSJT-Z:
-        // se possibile seleziona VFO B, imposta DIG-U, poi torna al VFO A.
         if ((writable & PM_VFOA) != 0 && (writable & PM_VFOB) != 0)
         {
             try
             {
                 _rig!.Vfo = PM_VFOB;
-                _rig.Mode = PM_DIG_U;
+                SetIcom7300UsbData(true);
                 _rig.Vfo = PM_VFOA;
+
+                if (_rxUsbLock)
+                    SetIcom7300UsbData(false);
+
                 setOnB = true;
-                AddLog("SPLIT", "VFO B impostato DATA / USB-D; ritorno a VFO A.");
+                AddLog("SPLIT", _rxUsbLock
+                    ? "Modo VFO fissato: A/RX USB | B/TX USB-D (LOCK ON)."
+                    : "VFO B impostato USB-D; ritorno a VFO A.");
             }
             catch (Exception ex)
             {
-                AddLog("SPLIT", "Impostazione DATA su VFO B via VFO A/B non riuscita: " + ex.Message);
+                AddLog("SPLIT", "Impostazione modi A/B non riuscita: " + ex.Message);
             }
         }
         else if ((writable & PM_VFOSWAP) != 0)
@@ -416,10 +489,16 @@ public partial class MainWindow : Window
             try
             {
                 _rig!.Vfo = PM_VFOSWAP;
-                _rig.Mode = PM_DIG_U;
+                SetIcom7300UsbData(true);
                 _rig.Vfo = PM_VFOSWAP;
+
+                if (_rxUsbLock)
+                    SetIcom7300UsbData(false);
+
                 setOnB = true;
-                AddLog("SPLIT", "VFO TX impostato DATA tramite VFO SWAP.");
+                AddLog("SPLIT", _rxUsbLock
+                    ? "Modo VFO fissato via SWAP: RX USB | TX USB-D (LOCK ON)."
+                    : "VFO TX impostato USB-D tramite VFO SWAP.");
             }
             catch (Exception ex)
             {
@@ -429,17 +508,7 @@ public partial class MainWindow : Window
 
         if (!setOnB)
         {
-            // Alcune definizioni OmniRig non espongono il VFO separatamente. In quel caso
-            // chiediamo DIG-U al driver e lasciamo a SetSplitMode la gestione A/B.
-            try
-            {
-                _rig!.Mode = PM_DIG_U;
-                AddLog("SPLIT", "OmniRig non espone la selezione VFO B: richiesto DATA al driver.");
-            }
-            catch (Exception ex)
-            {
-                AddLog("SPLIT", "ERRORE impostazione DATA TX: " + ex.Message);
-            }
+            AddLog("SPLIT", "ATTENZIONE: OmniRig non espone A/B separati; LOCK RX non può garantire modi differenti sui due VFO.");
         }
     }
 
@@ -567,7 +636,7 @@ public partial class MainWindow : Window
 
     private void PttOff_Click(object sender, RoutedEventArgs e)
     {
-        try { EnsureRig(); _rig!.Tx = PM_RX; AddLog("PTT", "OFF"); }
+        try { EnsureRig(); _rig!.Tx = PM_RX; ApplyRxUsbLock(); AddLog("PTT", "OFF"); }
         catch (Exception ex) { AddLog("PTT", "ERRORE: " + ex.Message); }
     }
 
@@ -741,7 +810,7 @@ public partial class MainWindow : Window
             bool splitReadback = ReadSplitActive();
 
             string txText = tx > 0 ? $"{tx:N0} Hz" : "--";
-            RigStatus.Text = $"{type} | {status} | RX {rx:N0} Hz | TX {txText} | {ModeName(mode)} | SPLIT {(splitReadback ? "ON" : "OFF")} | {((ptt & PM_TX) != 0 ? "TX" : "RX")}";
+            RigStatus.Text = $"{type} | {status} | RX {rx:N0} Hz | TX {txText} | {ModeName(mode)} | SPLIT {(splitReadback ? "ON" : "OFF")} | LOCK {(_rxUsbLock ? "ON" : "OFF")} | {((ptt & PM_TX) != 0 ? "TX" : "RX")}";
 
             UsbButton.FontWeight = (mode & PM_SSB_U) != 0 ? FontWeights.Bold : FontWeights.Normal;
             DataButton.FontWeight = (mode & PM_DIG_U) != 0 ? FontWeights.Bold : FontWeights.Normal;
