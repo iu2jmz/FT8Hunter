@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 using System.Windows.Threading;
 using HamDigiSharp.Engine;
 using HamDigiSharp.Models;
@@ -43,6 +44,8 @@ public partial class MainWindow : Window
     private bool _ignoreSplitToggle;
     private bool _rxUsbLock;
     private bool _ignoreRxLockToggle;
+    private bool _txFreqLock;
+    private int _lockedTxWaterfallHz = SplitTxAudioHz;
 
     public MainWindow()
     {
