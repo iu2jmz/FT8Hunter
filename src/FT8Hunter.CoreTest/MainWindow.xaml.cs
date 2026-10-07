@@ -744,18 +744,37 @@ public partial class MainWindow : Window
                 throw new InvalidOperationException("Seleziona l'ingresso audio USB del 7300.");
 
             ConfigureDecoder();
+
+            string rtMyCall = MyCallBox.Text.Trim().ToUpperInvariant();
+            string rtMyGrid = MyGridBox.Text.Trim().ToUpperInvariant();
+
             _rt = new RealTimeDecoder(DigitalMode.FT8, 48_000)
             {
                 FreqLow = 200,
                 FreqHigh = 3000,
-                AlignToUtc = true
+                AlignToUtc = true,
+                // HamDigiSharp consente l'early decode FT8 da ~0,88 del periodo:
+                // guadagniamo circa 300 ms rispetto al precedente 0,90.
+                EarlyDecodeRatio = 0.88f,
+                RealTimeOptions = new DecoderOptions
+                {
+                    MyCall = rtMyCall,
+                    MyBaseCall = rtMyCall,
+                    MyGrid = rtMyGrid,
+                    DecoderDepth = DecoderDepth.Normal,
+                    MaxCandidates = 75,
+                    MinSyncDb = 2.1f,
+                    ApDecode = !string.IsNullOrWhiteSpace(rtMyCall),
+                    QsoProgress = QsoProgress.None,
+                    AveragingEnabled = false
+                }
             };
             _rt.PeriodDecoded += OnPeriodDecoded;
 
             _waveIn = new WaveInEvent
             {
                 DeviceNumber = dev.Index,
-                BufferMilliseconds = 100,
+                BufferMilliseconds = 50,
                 NumberOfBuffers = 3,
                 WaveFormat = new WaveFormat(48_000, 16, 2)
             };
@@ -766,7 +785,7 @@ public partial class MainWindow : Window
             };
             _waveIn.StartRecording();
             Ft8Status.Text = $"FT8 Engine attivo — {dev.Display}";
-            AddLog("FT8", "RX FT8 avviata; attesa del prossimo periodo UTC completo.");
+            AddLog("FT8", $"RX FT8 avviata; early decode 88% | buffer audio 50 ms | AP {(string.IsNullOrWhiteSpace(rtMyCall) ? "OFF" : "ON")} per {rtMyCall}.");
         }
         catch (Exception ex)
         {
@@ -788,7 +807,15 @@ public partial class MainWindow : Window
             p += 4;
             mono[i] = ((l + r) * 0.5f) / 32768f;
         }
-        try { _rt.AddSamples(mono); }
+        try
+        {
+            // WaveIn consegna il buffer dopo averlo acquisito. RealTimeDecoder vuole
+            // invece il timestamp UTC del PRIMO campione: sottraiamo quindi la durata
+            // del buffer per non introdurre uno slittamento artificiale degli slot FT8.
+            DateTimeOffset firstSampleUtc = DateTimeOffset.UtcNow -
+                TimeSpan.FromSeconds(frames / 48_000.0);
+            _rt.AddSamples(mono, firstSampleUtc);
+        }
         catch (Exception ex) { Dispatcher.Invoke(() => AddLog("FT8", "Decode error: " + ex.Message)); }
     }
 
@@ -796,14 +823,15 @@ public partial class MainWindow : Window
     {
         Dispatcher.Invoke(() =>
         {
-            AutoQsoOnDecodedPeriod(results, windowStart);
+            // Prima rendiamo visibile il decode, poi la state machine decide la risposta.
+            // In questo modo il log rappresenta l'ordine reale degli eventi.
             if (results.Count == 0)
-            {
                 AddLog("FT8", $"{windowStart:HH:mm:ss} UTC — nessun decode");
-                return;
-            }
-            foreach (var r in results.OrderBy(x => x.FrequencyHz))
-                AddDecodeLog(r, windowStart);
+            else
+                foreach (var r in results.OrderBy(x => x.FrequencyHz))
+                    AddDecodeLog(r, windowStart);
+
+            AutoQsoOnDecodedPeriod(results, windowStart);
         });
     }
 
