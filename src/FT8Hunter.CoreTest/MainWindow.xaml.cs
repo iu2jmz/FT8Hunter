@@ -390,12 +390,42 @@ public partial class MainWindow : Window
         RefreshRigStatus();
     }
 
+    private void TxFreqLock_Checked(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            int position = ParseTxPosition();
+            _lockedTxWaterfallHz = position;
+            _txWaterfallHz = position;
+            _txFreqLock = true;
+            AddLog("LOCK", $"TX FREQ ON — posizione TX bloccata a {position} Hz.");
+        }
+        catch (Exception ex)
+        {
+            _txFreqLock = false;
+            TxFreqLockCheckBox.IsChecked = false;
+            AddLog("LOCK", "ERRORE LOCK TX FREQ: " + ex.Message);
+        }
+    }
+
+    private void TxFreqLock_Unchecked(object sender, RoutedEventArgs e)
+    {
+        _txFreqLock = false;
+        AddLog("LOCK", "TX FREQ OFF — Auto QSO può seguire la frequenza del corrispondente.");
+    }
+
     private void ApplyTxPosition_Click(object sender, RoutedEventArgs e)
     {
         try
         {
             int position = ParseTxPosition();
             _txWaterfallHz = position;
+
+            if (_txFreqLock)
+            {
+                _lockedTxWaterfallHz = position;
+                AddLog("LOCK", $"Nuova posizione TX bloccata manualmente: {position} Hz.");
+            }
 
             if (!_splitEnabled)
             {
