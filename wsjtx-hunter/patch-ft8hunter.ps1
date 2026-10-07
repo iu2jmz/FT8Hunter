@@ -52,8 +52,10 @@ Replace-Required "widgets/displaytext.cpp" `
      '  insertText (message.trimmed (), bg, fg, decodedText.call (), dxCall);')
 
 Replace-Required "widgets/displaytext.cpp" `
-    '    set_colours (m_config, &bg, &fg, types);' `
-    ('    set_colours (m_config, &bg, &fg, types);' + [Environment]::NewLine +
+    ('    highlight_types types {Highlight::Tx};' + [Environment]::NewLine +
+     '    set_colours (m_config, &bg, &fg, types);') `
+    ('    highlight_types types {Highlight::Tx};' + [Environment]::NewLine +
+     '    set_colours (m_config, &bg, &fg, types);' + [Environment]::NewLine +
      '    // FT8 Hunter: ogni riga realmente trasmessa da noi resta rossa e leggibile.' + [Environment]::NewLine +
      '    bg = QColor {198, 40, 40};' + [Environment]::NewLine +
      '    fg = QColor {255, 255, 255};')
