@@ -1,7 +1,7 @@
 <Window x:Class="FT8Hunter.CoreTest.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="FT8 Hunter - Core Test" Height="760" Width="1160" MinHeight="680" MinWidth="980">
+        Title="FT8 Hunter - Core Test" Height="850" Width="1180" MinHeight="760" MinWidth="1000">
     <Grid Margin="14">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -11,14 +11,14 @@
 
         <StackPanel Grid.Row="0">
             <TextBlock FontSize="26" FontWeight="Bold" Text="FT8 Hunter — Core Test"/>
-            <TextBlock Margin="0,4,0,0" Foreground="DimGray" Text="Milestone 1: OmniRig + motore FT8 interno"/>
+            <TextBlock Margin="0,4,0,0" Foreground="DimGray" Text="Milestone 2: OmniRig + FT8 RX/TX interno"/>
         </StackPanel>
 
         <Grid Grid.Row="1" Margin="0,14,0,14">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="1.15*"/>
+                <ColumnDefinition Width="1.05*"/>
                 <ColumnDefinition Width="16"/>
-                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="1.15*"/>
             </Grid.ColumnDefinitions>
 
             <GroupBox Grid.Column="0" Header="Radio / OmniRig" Padding="10">
@@ -59,14 +59,14 @@
                     </StackPanel>
 
                     <TextBlock Margin="0,7,0,0" TextWrapping="Wrap" Foreground="DimGray"
-                               Text="Con SPLIT attivo: VFO A = RX; VFO B = TX in DATA. FT8 Hunter mantiene il tono TX interno a 1500 Hz e sposta il VFO B in base alla posizione TX. Doppio clic su un decode per usare la sua frequenza audio come posizione TX."/>
+                               Text="Con SPLIT attivo: VFO A = RX; VFO B = TX in USB-D. Il tono FT8 TX interno resta a 1500 Hz e il VFO B segue la posizione TX. Doppio clic su un decode per usare la sua frequenza audio."/>
 
                     <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
                         <CheckBox x:Name="ArmPtt" Content="ABILITA TEST PTT" VerticalAlignment="Center"/>
                         <Button Content="PTT ON" Margin="12,0,0,0" Padding="12,4" Click="PttOn_Click"/>
                         <Button Content="PTT OFF" Margin="8,0,0,0" Padding="12,4" Click="PttOff_Click"/>
                     </StackPanel>
-                    <TextBlock Margin="0,10,0,0" TextWrapping="Wrap" Foreground="DarkRed" Text="Il PTT ON richiede esplicitamente la spunta di sicurezza."/>
+                    <TextBlock Margin="0,10,0,0" TextWrapping="Wrap" Foreground="DarkRed" Text="Il PTT manuale richiede esplicitamente la spunta di sicurezza."/>
                 </StackPanel>
             </GroupBox>
 
@@ -77,17 +77,47 @@
                         <TextBox x:Name="MyCallBox" Width="110" Text="IU2JMZ"/>
                         <Button Content="Self-test FT8" Margin="10,0,0,0" Padding="12,5" Click="SelfTest_Click"/>
                     </StackPanel>
+
                     <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
                         <TextBlock VerticalAlignment="Center" Text="Audio RX:" Margin="0,0,8,0"/>
-                        <ComboBox x:Name="AudioCombo" Width="300"/>
+                        <ComboBox x:Name="AudioCombo" Width="310"/>
                         <Button Content="Aggiorna" Margin="8,0,0,0" Padding="10,4" Click="RefreshAudio_Click"/>
                     </StackPanel>
-                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                         <Button Content="Avvia RX FT8" Padding="14,5" Click="StartFt8_Click"/>
-                        <Button Content="Stop" Margin="8,0,0,0" Padding="14,5" Click="StopFt8_Click"/>
+                        <Button Content="Stop RX" Margin="8,0,0,0" Padding="14,5" Click="StopFt8_Click"/>
                     </StackPanel>
-                    <TextBlock x:Name="Ft8Status" Margin="0,10,0,0" FontWeight="SemiBold" Text="FT8 Engine fermo" TextWrapping="Wrap"/>
-                    <TextBlock Margin="0,10,0,0" TextWrapping="Wrap" Text="Il decoder FT8 è interno al programma. L'audio del 7300 viene acquisito a 48 kHz e riallineato ai periodi UTC da 15 secondi."/>
+                    <TextBlock x:Name="Ft8Status" Margin="0,8,0,0" FontWeight="SemiBold" Text="FT8 Engine fermo" TextWrapping="Wrap"/>
+
+                    <Separator Margin="0,12,0,10"/>
+
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock VerticalAlignment="Center" Text="Audio TX:" Margin="0,0,8,0"/>
+                        <ComboBox x:Name="AudioTxCombo" Width="310"/>
+                        <Button Content="Aggiorna" Margin="8,0,0,0" Padding="10,4" Click="RefreshTxAudio_Click"/>
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,9,0,0">
+                        <TextBlock VerticalAlignment="Center" Text="Messaggio TX:" Margin="0,0,8,0"/>
+                        <TextBox x:Name="TxMessageBox" Width="270"/>
+                        <TextBlock VerticalAlignment="Center" Margin="8,0,0,0" Foreground="DimGray" Text="es. CQ IU2JMZ GRID"/>
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,9,0,0">
+                        <TextBlock VerticalAlignment="Center" Text="Livello:" Margin="0,0,8,0"/>
+                        <TextBox x:Name="TxLevelBox" Width="50" Text="30"/>
+                        <TextBlock VerticalAlignment="Center" Text=" %" Margin="4,0,12,0"/>
+                        <CheckBox x:Name="ArmFt8Tx" Content="ABILITA TX FT8" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                        <Button Content="TX FT8 PROSSIMO SLOT" Padding="14,6" Click="TransmitFt8_Click"/>
+                        <Button Content="STOP TX" Margin="8,0,0,0" Padding="14,6" Click="StopTransmitFt8_Click"/>
+                    </StackPanel>
+
+                    <TextBlock x:Name="Ft8TxStatus" Margin="0,9,0,0" FontWeight="SemiBold" Text="TX FT8 fermo" TextWrapping="Wrap"/>
+                    <TextBlock Margin="0,7,0,0" TextWrapping="Wrap" Foreground="DarkRed"
+                               Text="Sicurezza: il TX FT8 richiede SPLIT attivo, Audio TX selezionato e la spunta ABILITA TX FT8. Il PTT viene aperto circa 250 ms prima del prossimo slot UTC da 15 s e rilasciato automaticamente a fine trama."/>
                 </StackPanel>
             </GroupBox>
         </Grid>
