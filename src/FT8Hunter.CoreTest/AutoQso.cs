@@ -14,10 +14,10 @@ public partial class MainWindow
         Complete
     }
 
-    // HamDigiSharp può consegnare un decode valido qualche istante dopo un primo
-    // risultato vuoto/parziale. Prima di ritrasmettere lasciamo quindi una finestra
-    // di grazia; un late decode valido annulla immediatamente il retry già armato.
-    private const int AutoDecodeGraceMs = 3000;
+    // FAST-QSO: nessuna attesa artificiale dopo un decode vuoto.
+    // Se il decoder non trova una risposta, il retry viene armato subito per
+    // preservare lo slot FT8 successivo sul PC lento.
+    private const int AutoDecodeGraceMs = 0;
 
     private CancellationTokenSource? _autoQsoCts;
     private CancellationTokenSource? _autoRetryCts;
@@ -70,6 +70,8 @@ public partial class MainWindow
         _autoTxParity = null;
         _autoAttempts = 0;
 
+        ConfigureFastQsoDecoder(null, 0, QsoProgress.None);
+
         string cq = $"CQ {myCall} {myGrid}";
         AutoQsoStatus.Text = "Auto QSO: invio CQ...";
         AddLog("AUTO", $"START — {cq}");
@@ -101,6 +103,8 @@ public partial class MainWindow
         _autoTxParity = null;
         _autoAttempts = 0;
         _autoTxInProgress = false;
+
+        RestoreRealtimeBrowseDecoder();
 
         if (AutoQsoStatus is not null)
             AutoQsoStatus.Text = "Auto QSO fermo";
@@ -176,6 +180,10 @@ public partial class MainWindow
 
             _ = ReplacePendingAutoTxAsync(reply, AutoQsoState.WaitingRReport, resetAttempts: true,
                 replyTarget, $"decode valido di {dx}");
+
+            // Solo dopo avere armato il TX restringiamo il decoder sul corrispondente:
+            // meno candidati e finestra audio stretta = risposta successiva più rapida.
+            ConfigureFastQsoDecoder(dx, callerHz, QsoProgress.Called);
             return;
         }
 
@@ -210,6 +218,7 @@ public partial class MainWindow
                 AddLog("SCHED", $"DECODE {decodeAt:HH:mm:ss.fff} UTC | RX SLOT {windowStart:HH:mm:ss.fff} | TARGET RR73 {replyTarget:HH:mm:ss.fff} | margine {targetMarginMs:F0} ms");
                 AutoQsoStatus.Text = $"QSO con {dx}: R-report {payload}, target {replyTarget:HH:mm:ss} UTC";
                 _ = ReplacePendingFinalTxAsync(rr73, dx, replyTarget, $"R-report {payload} ricevuto");
+                ConfigureFastQsoDecoder(dx, addressed.Result.FrequencyHz, QsoProgress.ReportReceived);
                 return;
             }
 
@@ -381,8 +390,8 @@ public partial class MainWindow
         var retryCts = CancellationTokenSource.CreateLinkedTokenSource(_autoQsoCts.Token);
         _autoRetryCts = retryCts;
 
-        AutoQsoStatus.Text = $"Auto QSO: attesa decode tardivo {AutoDecodeGraceMs / 1000.0:F1}s prima del retry";
-        AddLog("AUTO", $"Decode guard {AutoDecodeGraceMs} ms: non ritrasmetto subito ({reason}).");
+        AutoQsoStatus.Text = "Auto QSO FAST: retry immediato";
+        AddLog("AUTO", $"FAST retry: nessuna attesa aggiuntiva ({reason}).");
 
         _ = RunRetryAfterGraceAsync(retryCts, reason);
     }
@@ -433,11 +442,68 @@ public partial class MainWindow
     {
         CancelRetryTimer();
         _autoQsoState = AutoQsoState.Complete;
+        RestoreRealtimeBrowseDecoder();
         AutoQsoStatus.Text = $"QSO COMPLETATO con {dx} — {reason}";
         AddLog("AUTO", $"QSO COMPLETATO con {dx} — {reason}");
 
         try { _autoQsoCts?.Dispose(); } catch { }
         _autoQsoCts = null;
+    }
+
+    private void ConfigureFastQsoDecoder(string? hisCall, double qsoFrequencyHz, QsoProgress progress)
+    {
+        if (_rt is null) return;
+
+        string myCall = MyCallBox.Text.Trim().ToUpperInvariant();
+        string myGrid = MyGridBox.Text.Trim().ToUpperInvariant();
+        bool focused = !string.IsNullOrWhiteSpace(hisCall) && qsoFrequencyHz is >= 200 and <= 3000;
+
+        _rt.FreqLow = focused ? Math.Max(200, qsoFrequencyHz - 250) : 200;
+        _rt.FreqHigh = focused ? Math.Min(3000, qsoFrequencyHz + 250) : 3000;
+
+        _rt.RealTimeOptions = new DecoderOptions
+        {
+            MyCall = myCall,
+            MyBaseCall = myCall,
+            MyGrid = myGrid,
+            HisCall = hisCall ?? string.Empty,
+            DecoderDepth = DecoderDepth.Fast,
+            MaxCandidates = focused ? 24 : 40,
+            MinSyncDb = 2.1f,
+            ApDecode = !string.IsNullOrWhiteSpace(myCall),
+            QsoProgress = progress,
+            QsoFrequencyHz = focused ? qsoFrequencyHz : 0,
+            TxFrequencyHz = _txFreqLock ? _lockedTxWaterfallHz : _txWaterfallHz,
+            FreqTolerance = focused ? 250 : 200,
+            AveragingEnabled = false
+        };
+
+        AddLog("FAST", focused
+            ? $"Decoder FAST focalizzato su {hisCall} @ {qsoFrequencyHz:F0} Hz | 24 candidati | ±250 Hz."
+            : "Decoder FAST CQ attivo | 40 candidati | banda audio completa.");
+    }
+
+    private void RestoreRealtimeBrowseDecoder()
+    {
+        if (_rt is null) return;
+
+        string myCall = MyCallBox.Text.Trim().ToUpperInvariant();
+        string myGrid = MyGridBox.Text.Trim().ToUpperInvariant();
+
+        _rt.FreqLow = 200;
+        _rt.FreqHigh = 3000;
+        _rt.RealTimeOptions = new DecoderOptions
+        {
+            MyCall = myCall,
+            MyBaseCall = myCall,
+            MyGrid = myGrid,
+            DecoderDepth = DecoderDepth.Normal,
+            MaxCandidates = 75,
+            MinSyncDb = 2.1f,
+            ApDecode = !string.IsNullOrWhiteSpace(myCall),
+            QsoProgress = QsoProgress.None,
+            AveragingEnabled = false
+        };
     }
 
     private static (string DxCall, string Payload)? ParseAddressedMessage(string message, string myCall)
