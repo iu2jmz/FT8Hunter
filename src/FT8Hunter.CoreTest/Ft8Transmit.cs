@@ -186,6 +186,7 @@ public partial class MainWindow
                 await Task.Delay(waitAudio, ct);
 
             Ft8TxStatus.Text = $"TRASMISSIONE — {message}";
+            AddTxMessageLog(slot, message);
             AddLog(logTag, $"Audio FT8 START {DateTimeOffset.UtcNow:HH:mm:ss.fff} UTC @ {SplitTxAudioHz} Hz");
             _ft8WaveOut.Play();
 
