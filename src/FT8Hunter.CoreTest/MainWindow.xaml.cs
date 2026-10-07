@@ -37,6 +37,7 @@ public partial class MainWindow : Window
     private readonly DecoderEngine _decoder = new();
     private RealTimeDecoder? _rt;
     private readonly DispatcherTimer _poll;
+    private float[] _monoBuffer = Array.Empty<float>();
 
     private bool _splitEnabled;
     private long _splitRxFrequency;
@@ -51,7 +52,13 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         _poll = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
-        _poll.Tick += (_, _) => RefreshRigStatus();
+        _poll.Tick += (_, _) =>
+        {
+            // Durante Auto QSO lasciamo CPU e thread UI al decoder/scheduler.
+            // Lo stato radio riprende ad aggiornarsi appena l'Auto QSO termina.
+            if (_autoQsoState is AutoQsoState.Off or AutoQsoState.Complete)
+                RefreshRigStatus();
+        };
         _poll.Start();
         Loaded += (_, _) => { RefreshAudioDevices(); RefreshTxAudioDevices(); };
         Closing += (_, _) => Shutdown();
@@ -806,7 +813,10 @@ public partial class MainWindow : Window
     {
         if (_rt is null) return;
         int frames = e.BytesRecorded / 4;
-        var mono = new float[frames];
+        if (_monoBuffer.Length < frames)
+            _monoBuffer = new float[frames];
+
+        Span<float> mono = _monoBuffer.AsSpan(0, frames);
         int p = 0;
         for (int i = 0; i < frames; i++)
         {
@@ -831,16 +841,16 @@ public partial class MainWindow : Window
     {
         Dispatcher.Invoke(() =>
         {
-            // Prima rendiamo visibile il decode, poi la state machine decide la risposta.
-            // In questo modo il log rappresenta l'ordine reale degli eventi.
+            // FAST-QSO: la state machine ha priorità assoluta sulla grafica.
+            // Prima si arma la risposta; solo dopo aggiorniamo righe/colori del log.
+            AutoQsoOnDecodedPeriod(results, windowStart);
+
             if (results.Count == 0)
                 AddLog("FT8", $"{windowStart:HH:mm:ss} UTC — nessun decode");
             else
                 foreach (var r in results.OrderBy(x => x.FrequencyHz))
                     AddDecodeLog(r, windowStart);
-
-            AutoQsoOnDecodedPeriod(results, windowStart);
-        });
+        }, DispatcherPriority.Send);
     }
 
     private void StopFt8_Click(object sender, RoutedEventArgs e)
