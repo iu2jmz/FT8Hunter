@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory=$true)][string]$SourceDir,
-    [string]$HunterVersion = "1.0.1"
+    [string]$HunterVersion = "1.0.2"
 )
 
 $ErrorActionPreference = "Stop"
