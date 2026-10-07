@@ -48,7 +48,7 @@ public partial class MainWindow : Window
         _poll = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
         _poll.Tick += (_, _) => RefreshRigStatus();
         _poll.Start();
-        Loaded += (_, _) => RefreshAudioDevices();
+        Loaded += (_, _) => { RefreshAudioDevices(); RefreshTxAudioDevices(); };
         Closing += (_, _) => Shutdown();
     }
 
@@ -679,6 +679,7 @@ public partial class MainWindow : Window
     {
         Dispatcher.Invoke(() =>
         {
+            AutoQsoOnDecodedPeriod(results, windowStart);
             if (results.Count == 0)
             {
                 AddLog("FT8", $"{windowStart:HH:mm:ss} UTC — nessun decode");
@@ -768,6 +769,8 @@ public partial class MainWindow : Window
     private void Shutdown()
     {
         _poll.Stop();
+        StopAutoQsoInternal("Chiusura programma", false);
+        StopFt8TransmitInternal(false);
         StopFt8();
         try { if (_rig is not null) _rig.Tx = PM_RX; } catch { }
         _rig = null;
