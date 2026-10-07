@@ -14,7 +14,14 @@ public partial class MainWindow
         Complete
     }
 
+    // HamDigiSharp può consegnare un decode valido qualche istante dopo un primo
+    // risultato vuoto/parziale. Prima di ritrasmettere lasciamo quindi una finestra
+    // di grazia; un late decode valido annulla immediatamente il retry già armato.
+    private const int AutoDecodeGraceMs = 3000;
+
     private CancellationTokenSource? _autoQsoCts;
+    private CancellationTokenSource? _autoRetryCts;
+    private CancellationTokenSource? _autoActiveTxCts;
     private AutoQsoState _autoQsoState = AutoQsoState.Off;
     private string? _autoDxCall;
     private string? _autoLastTxMessage;
@@ -77,6 +84,11 @@ public partial class MainWindow
 
     private void StopAutoQsoInternal(string reason, bool log)
     {
+        CancelRetryTimer();
+        try { _autoActiveTxCts?.Cancel(); } catch { }
+        try { _autoActiveTxCts?.Dispose(); } catch { }
+        _autoActiveTxCts = null;
+
         try { _autoQsoCts?.Cancel(); } catch { }
         try { _autoQsoCts?.Dispose(); } catch { }
         _autoQsoCts = null;
@@ -102,21 +114,20 @@ public partial class MainWindow
         if (_autoQsoState is AutoQsoState.Off or AutoQsoState.Complete)
             return;
 
-        if (_autoTxInProgress || _autoQsoCts is null || _autoTxParity is null)
+        if (_autoQsoCts is null || _autoTxParity is null)
             return;
 
+        // Una finestra viene marcata come processata solo quando abbiamo realmente
+        // consumato una risposta valida. I callback vuoti/parziali restano quindi
+        // aperti a un eventuale late decode dello stesso periodo.
         if (_autoLastProcessedWindow == windowStart)
             return;
 
-        // Le finestre con la stessa parità del nostro TX sono i nostri slot di trasmissione.
-        // La risposta deve arrivare sulla parità opposta.
         if (GetFt8SlotParity(windowStart) == _autoTxParity.Value)
             return;
 
         if (_autoLastTxSlot.HasValue && windowStart < _autoLastTxSlot.Value.AddSeconds(10))
             return;
-
-        _autoLastProcessedWindow = windowStart;
 
         string myCall = NormalizeCallToken(MyCallBox.Text);
 
@@ -130,9 +141,12 @@ public partial class MainWindow
 
             if (caller is null)
             {
-                RetryCurrentAutoMessage("nessuna risposta al CQ");
+                ScheduleRetryCurrentAutoMessage("nessuna risposta al CQ / attesa late decode");
                 return;
             }
+
+            _autoLastProcessedWindow = windowStart;
+            CancelRetryTimer();
 
             string dx = caller.Parsed!.Value.DxCall;
             _autoDxCall = dx;
@@ -152,10 +166,11 @@ public partial class MainWindow
             string report = FormatFt8Report(caller.Result.Snr);
             string reply = $"{dx} {myCall} {report}";
 
-            AddLog("AUTO", $"CALLER selezionato: {dx} | SNR {caller.Result.Snr:+#;-#;0} dB | RX {callerHz} Hz | TX {(_txFreqLock ? _lockedTxWaterfallHz : callerHz)} Hz → '{reply}'");
-            AutoQsoStatus.Text = $"QSO con {dx}: invio rapporto {report}";
+            AddLog("AUTO", $"LATE/VALID CALLER: {dx} | SNR {caller.Result.Snr:+#;-#;0} dB | RX {callerHz} Hz | TX {(_txFreqLock ? _lockedTxWaterfallHz : callerHz)} Hz → '{reply}'");
+            AutoQsoStatus.Text = $"QSO con {dx}: risposta valida, invio rapporto {report}";
 
-            _ = AutoSendAsync(reply, AutoQsoState.WaitingRReport, resetAttempts: true);
+            _ = ReplacePendingAutoTxAsync(reply, AutoQsoState.WaitingRReport, resetAttempts: true,
+                $"decode valido di {dx}");
             return;
         }
 
@@ -170,7 +185,7 @@ public partial class MainWindow
 
             if (addressed is null)
             {
-                RetryCurrentAutoMessage($"nessuna risposta da {dx}");
+                ScheduleRetryCurrentAutoMessage($"nessuna risposta da {dx} / attesa late decode");
                 return;
             }
 
@@ -178,22 +193,75 @@ public partial class MainWindow
 
             if (Regex.IsMatch(payload, "^R[+-][0-9]{2}$", RegexOptions.CultureInvariant))
             {
+                _autoLastProcessedWindow = windowStart;
+                CancelRetryTimer();
+
                 string rr73 = $"{dx} {myCall} RR73";
-                AddLog("AUTO", $"R-report ricevuto da {dx}: {payload} → '{rr73}'");
+                AddLog("AUTO", $"LATE/VALID R-report da {dx}: {payload} → '{rr73}'");
                 AutoQsoStatus.Text = $"QSO con {dx}: R-report {payload}, invio RR73";
-                _ = SendFinalRr73Async(rr73, dx);
+                _ = ReplacePendingFinalTxAsync(rr73, dx, $"R-report {payload} ricevuto");
                 return;
             }
 
             if (payload is "RR73" or "73")
             {
+                _autoLastProcessedWindow = windowStart;
+                CancelRetryTimer();
+                CancelActiveAutoTx($"ricevuto {payload} da {dx}");
                 FinishAutoQso(dx, $"ricevuto {payload}");
                 return;
             }
 
             AddLog("AUTO", $"Messaggio da {dx} ricevuto ma non ancora conclusivo: '{addressed.Result.Message.Trim()}'");
-            RetryCurrentAutoMessage($"atteso R-report da {dx}");
+            ScheduleRetryCurrentAutoMessage($"atteso R-report da {dx} / possibile late decode");
         }
+    }
+
+    private async Task ReplacePendingAutoTxAsync(
+        string message,
+        AutoQsoState stateAfterTx,
+        bool resetAttempts,
+        string reason)
+    {
+        CancelRetryTimer();
+        CancelActiveAutoTx(reason);
+
+        // Se un retry aveva già iniziato la commutazione, attendiamo che il finally
+        // abbia spento PTT e liberato il gate prima di armare il messaggio corretto.
+        for (int i = 0; i < 80 && _autoTxInProgress; i++)
+            await Task.Delay(50);
+
+        if (_autoQsoCts is null || _autoQsoState == AutoQsoState.Off)
+            return;
+
+        await AutoSendAsync(message, stateAfterTx, resetAttempts);
+    }
+
+    private async Task ReplacePendingFinalTxAsync(string message, string dx, string reason)
+    {
+        CancelRetryTimer();
+        CancelActiveAutoTx(reason);
+
+        for (int i = 0; i < 80 && _autoTxInProgress; i++)
+            await Task.Delay(50);
+
+        if (_autoQsoCts is null || _autoQsoState == AutoQsoState.Off)
+            return;
+
+        await SendFinalRr73Async(message, dx);
+    }
+
+    private void CancelActiveAutoTx(string reason)
+    {
+        if (_autoActiveTxCts is null || !_autoTxInProgress)
+            return;
+
+        try
+        {
+            _autoActiveTxCts.Cancel();
+            AddLog("AUTO", $"TX/retry già armato annullato: {reason}.");
+        }
+        catch { }
     }
 
     private async Task AutoSendAsync(string message, AutoQsoState stateAfterTx, bool resetAttempts)
@@ -212,9 +280,12 @@ public partial class MainWindow
         _autoQsoState = stateAfterTx;
         _autoTxInProgress = true;
 
+        using var txCts = CancellationTokenSource.CreateLinkedTokenSource(_autoQsoCts.Token);
+        _autoActiveTxCts = txCts;
+
         try
         {
-            DateTimeOffset slot = await SendFt8MessageAsync(message, _autoQsoCts.Token, "AUTO", _autoTxParity);
+            DateTimeOffset slot = await SendFt8MessageAsync(message, txCts.Token, "AUTO", _autoTxParity);
             _autoLastTxSlot = slot;
             _autoTxParity ??= GetFt8SlotParity(slot);
 
@@ -228,7 +299,7 @@ public partial class MainWindow
         catch (OperationCanceledException)
         {
             if (_autoQsoState != AutoQsoState.Off)
-                AddLog("AUTO", "Operazione annullata.");
+                AddLog("AUTO", "TX armato annullato per un decode arrivato in ritardo o per STOP.");
         }
         catch (Exception ex)
         {
@@ -237,6 +308,8 @@ public partial class MainWindow
         }
         finally
         {
+            if (ReferenceEquals(_autoActiveTxCts, txCts))
+                _autoActiveTxCts = null;
             _autoTxInProgress = false;
         }
     }
@@ -250,15 +323,19 @@ public partial class MainWindow
         _autoLastTxMessage = message;
         _autoTxInProgress = true;
 
+        using var txCts = CancellationTokenSource.CreateLinkedTokenSource(_autoQsoCts.Token);
+        _autoActiveTxCts = txCts;
+
         try
         {
-            DateTimeOffset slot = await SendFt8MessageAsync(message, _autoQsoCts.Token, "AUTO", _autoTxParity);
+            DateTimeOffset slot = await SendFt8MessageAsync(message, txCts.Token, "AUTO", _autoTxParity);
             _autoLastTxSlot = slot;
             FinishAutoQso(dx, "RR73 trasmesso");
         }
         catch (OperationCanceledException)
         {
-            AddLog("AUTO", "RR73 annullato.");
+            if (_autoQsoState != AutoQsoState.Off)
+                AddLog("AUTO", "RR73 armato annullato.");
         }
         catch (Exception ex)
         {
@@ -267,13 +344,18 @@ public partial class MainWindow
         }
         finally
         {
+            if (ReferenceEquals(_autoActiveTxCts, txCts))
+                _autoActiveTxCts = null;
             _autoTxInProgress = false;
         }
     }
 
-    private void RetryCurrentAutoMessage(string reason)
+    private void ScheduleRetryCurrentAutoMessage(string reason)
     {
         if (_autoQsoCts is null || string.IsNullOrWhiteSpace(_autoLastTxMessage))
+            return;
+
+        if (_autoRetryCts is not null)
             return;
 
         if (_autoAttempts >= 3)
@@ -281,19 +363,64 @@ public partial class MainWindow
             string phase = _autoQsoState == AutoQsoState.WaitingCaller ? "CQ" : $"QSO con {_autoDxCall}";
             AddLog("AUTO", $"STOP — {phase}: 3 tentativi senza risposta valida ({reason}).");
             AutoQsoStatus.Text = $"Auto QSO fermato: 3 tentativi ({reason})";
-            try { _autoQsoCts.Cancel(); } catch { }
-            try { _autoQsoCts.Dispose(); } catch { }
-            _autoQsoCts = null;
-            _autoQsoState = AutoQsoState.Off;
+            StopAutoQsoInternal("Limite tentativi", false);
             return;
         }
 
-        AddLog("AUTO", $"Retry {_autoAttempts + 1}/3: {reason}.");
-        _ = AutoSendAsync(_autoLastTxMessage, _autoQsoState, resetAttempts: false);
+        var retryCts = CancellationTokenSource.CreateLinkedTokenSource(_autoQsoCts.Token);
+        _autoRetryCts = retryCts;
+
+        AutoQsoStatus.Text = $"Auto QSO: attesa decode tardivo {AutoDecodeGraceMs / 1000.0:F1}s prima del retry";
+        AddLog("AUTO", $"Decode guard {AutoDecodeGraceMs} ms: non ritrasmetto subito ({reason}).");
+
+        _ = RunRetryAfterGraceAsync(retryCts, reason);
+    }
+
+    private async Task RunRetryAfterGraceAsync(CancellationTokenSource retryCts, string reason)
+    {
+        try
+        {
+            await Task.Delay(AutoDecodeGraceMs, retryCts.Token);
+
+            if (_autoQsoCts is null || retryCts.IsCancellationRequested ||
+                string.IsNullOrWhiteSpace(_autoLastTxMessage))
+                return;
+
+            string message = _autoLastTxMessage;
+            AutoQsoState state = _autoQsoState;
+
+            AddLog("AUTO", $"Nessun late decode valido: retry {_autoAttempts + 1}/3 ({reason}).");
+
+            if (ReferenceEquals(_autoRetryCts, retryCts))
+                _autoRetryCts = null;
+
+            await AutoSendAsync(message, state, resetAttempts: false);
+        }
+        catch (OperationCanceledException)
+        {
+            AddLog("AUTO", "Retry sospeso: è arrivato un decode utile prima della ritrasmissione.");
+        }
+        finally
+        {
+            if (ReferenceEquals(_autoRetryCts, retryCts))
+                _autoRetryCts = null;
+            retryCts.Dispose();
+        }
+    }
+
+    private void CancelRetryTimer()
+    {
+        var cts = _autoRetryCts;
+        _autoRetryCts = null;
+        if (cts is null) return;
+
+        try { cts.Cancel(); } catch { }
+        try { cts.Dispose(); } catch { }
     }
 
     private void FinishAutoQso(string dx, string reason)
     {
+        CancelRetryTimer();
         _autoQsoState = AutoQsoState.Complete;
         AutoQsoStatus.Text = $"QSO COMPLETATO con {dx} — {reason}";
         AddLog("AUTO", $"QSO COMPLETATO con {dx} — {reason}");
