@@ -12,9 +12,14 @@
 
 namespace
 {
-  QString options ()
+  QString options (Log4OmMysqlSettings const& settings)
   {
-    return QStringLiteral("MYSQL_OPT_CONNECT_TIMEOUT=3;MYSQL_OPT_RECONNECT=1;MYSQL_SET_CHARSET_NAME=utf8mb4");
+    return QStringLiteral(
+      "MYSQL_OPT_CONNECT_TIMEOUT=3;"
+      "MYSQL_OPT_RECONNECT=1;"
+      "MYSQL_SET_CHARSET_NAME=utf8mb4;"
+      "MYSQL_OPT_SSL_VERIFY_SERVER_CERT=%1")
+      .arg (settings.verifyTlsCertificate ? 1 : 0);
   }
 
   void configure (QSqlDatabase& db, Log4OmMysqlSettings const& settings)
@@ -24,7 +29,7 @@ namespace
     db.setDatabaseName (settings.database.trimmed ());
     db.setUserName (settings.username.trimmed ());
     db.setPassword (settings.password);
-    db.setConnectOptions (options ());
+    db.setConnectOptions (options (settings));
   }
 
   QString filterSql (Log4OmMysqlSettings const& settings)
@@ -59,6 +64,7 @@ Log4OmMysqlSettings Log4OmMysql::loadSettings ()
   out.database = s.value (QStringLiteral("database"), QStringLiteral("log4om2")).toString ();
   out.username = s.value (QStringLiteral("username")).toString ();
   out.password = s.value (QStringLiteral("password")).toString ();
+  out.verifyTlsCertificate = s.value (QStringLiteral("verifyTlsCertificate"), false).toBool ();
   out.stationCallsign = s.value (QStringLiteral("stationCallsign")).toString ().trimmed ().toUpper ();
   s.endGroup ();
   return out;
@@ -74,6 +80,7 @@ void Log4OmMysql::saveSettings (Log4OmMysqlSettings const& settings)
   s.setValue (QStringLiteral("database"), settings.database.trimmed ());
   s.setValue (QStringLiteral("username"), settings.username.trimmed ());
   s.setValue (QStringLiteral("password"), settings.password);
+  s.setValue (QStringLiteral("verifyTlsCertificate"), settings.verifyTlsCertificate);
   s.setValue (QStringLiteral("stationCallsign"), settings.stationCallsign.trimmed ().toUpper ());
   s.endGroup ();
   s.sync ();
