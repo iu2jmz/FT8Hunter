@@ -1,5 +1,5 @@
 #define MyAppName "FT8 Hunter"
-#define MyAppVersion "0.6.4"
+#define MyAppVersion "0.6.5"
 #define MyAppPublisher "IU2JMZ"
 #define MyAppExeName "FT8Hunter_Test.exe"
 
@@ -12,7 +12,7 @@ DefaultDirName={autopf}\FT8 Hunter
 DefaultGroupName=FT8 Hunter
 DisableProgramGroupPage=yes
 OutputDir=..\installer-output
-OutputBaseFilename=FT8Hunter_Setup_v0.6.4
+OutputBaseFilename=FT8Hunter_Setup_v0.6.5
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
