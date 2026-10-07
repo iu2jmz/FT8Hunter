@@ -138,13 +138,21 @@ public partial class MainWindow
             _autoDxCall = dx;
 
             int callerHz = Math.Clamp((int)Math.Round(caller.Result.FrequencyHz), 200, 3000);
-            TxPositionBox.Text = callerHz.ToString(System.Globalization.CultureInfo.InvariantCulture);
-            _txWaterfallHz = callerHz;
+
+            if (_txFreqLock)
+            {
+                AddLog("LOCK", $"Caller {dx} a {callerHz} Hz: TX resta bloccata a {_lockedTxWaterfallHz} Hz.");
+            }
+            else
+            {
+                TxPositionBox.Text = callerHz.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                _txWaterfallHz = callerHz;
+            }
 
             string report = FormatFt8Report(caller.Result.Snr);
             string reply = $"{dx} {myCall} {report}";
 
-            AddLog("AUTO", $"CALLER selezionato: {dx} | SNR {caller.Result.Snr:+#;-#;0} dB | {callerHz} Hz → '{reply}'");
+            AddLog("AUTO", $"CALLER selezionato: {dx} | SNR {caller.Result.Snr:+#;-#;0} dB | RX {callerHz} Hz | TX {(_txFreqLock ? _lockedTxWaterfallHz : callerHz)} Hz → '{reply}'");
             AutoQsoStatus.Text = $"QSO con {dx}: invio rapporto {report}";
 
             _ = AutoSendAsync(reply, AutoQsoState.WaitingRReport, resetAttempts: true);
