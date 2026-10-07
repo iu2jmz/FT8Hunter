@@ -55,7 +55,6 @@ jobs:
             mingw-w64-x86_64-boost
             mingw-w64-x86_64-libusb
             mingw-w64-x86_64-portaudio
-            mingw-w64-x86_64-hamlib
             mingw-w64-x86_64-libmariadbclient
             mingw-w64-x86_64-pkg-config
             mingw-w64-x86_64-ruby
@@ -74,6 +73,26 @@ jobs:
       - name: Apply FT8 Hunter v1 patch
         shell: pwsh
         run: ./wsjtx-hunter/patch-ft8hunter.ps1 -SourceDir "./wsjtx-src" -HunterVersion "$env:HUNTER_VERSION"
+
+      - name: Cache Hamlib
+        id: hamlib-cache
+        uses: actions/cache@v4
+        with:
+          path: hamlib-prefix
+          key: hamlib-windows-${{ env.HAMLIB_BRANCH }}-mingw64-v1
+
+      - name: Build Hamlib only on cache miss
+        if: steps.hamlib-cache.outputs.cache-hit != 'true'
+        env:
+          MSYS2_PATH_TYPE: inherit
+        run: |
+          WORKSPACE=$(cygpath "${GITHUB_WORKSPACE}")
+          git clone --depth 1 --branch "$HAMLIB_BRANCH" https://github.com/Hamlib/Hamlib.git hamlib-src
+          cd hamlib-src
+          ./bootstrap
+          ./configure --prefix="${WORKSPACE}/hamlib-prefix" --enable-shared --disable-static --without-cxx-binding --without-readline CFLAGS="-DNDEBUG -O2 -fdata-sections -ffunction-sections" LDFLAGS="-Wl,--gc-sections"
+          make -j$(nproc)
+          make install-strip
 
       - name: Download and install OmniRig for WSJT-X build support
         shell: pwsh
@@ -97,6 +116,7 @@ jobs:
           WORKSPACE=$(cygpath "${GITHUB_WORKSPACE}")
           OMNIRIG=$(cygpath "${OMNIRIG_PATH}")
           cmake -G "MSYS Makefiles" -S wsjtx-src -B wsjtx-build \
+            -DCMAKE_PREFIX_PATH="${WORKSPACE}/hamlib-prefix" \
             -DOMNIRIG_TYPE_LIB="${OMNIRIG}" \
             -DCMAKE_Fortran_FLAGS="-fallow-argument-mismatch -std=legacy" \
             -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
