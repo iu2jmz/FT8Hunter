@@ -803,7 +803,7 @@ public partial class MainWindow : Window
                 return;
             }
             foreach (var r in results.OrderBy(x => x.FrequencyHz))
-                AddLog("FT8", $"{windowStart:HH:mm:ss}  {r.Snr,4:+#;-#;0} dB  dt={r.Dt,5:F1}s  {r.FrequencyHz,7:F0} Hz  {r.Message}");
+                AddDecodeLog(r, windowStart);
         });
     }
 
@@ -858,7 +858,7 @@ public partial class MainWindow : Window
             bool splitReadback = ReadSplitActive();
 
             string txText = tx > 0 ? $"{tx:N0} Hz" : "--";
-            RigStatus.Text = $"{type} | {status} | RX {rx:N0} Hz | TX {txText} | {ModeName(mode)} | SPLIT {(splitReadback ? "ON" : "OFF")} | LOCK {(_rxUsbLock ? "ON" : "OFF")} | {((ptt & PM_TX) != 0 ? "TX" : "RX")}";
+            RigStatus.Text = $"{type} | {status} | RX {rx:N0} Hz | TX {txText} | {ModeName(mode)} | SPLIT {(splitReadback ? "ON" : "OFF")} | RX LOCK {(_rxUsbLock ? "ON" : "OFF")} | TXF LOCK {(_txFreqLock ? "ON" : "OFF")} | {((ptt & PM_TX) != 0 ? "TX" : "RX")}";
 
             UsbButton.FontWeight = (mode & PM_SSB_U) != 0 ? FontWeights.Bold : FontWeights.Normal;
             DataButton.FontWeight = (mode & PM_DIG_U) != 0 ? FontWeights.Bold : FontWeights.Normal;
@@ -876,9 +876,7 @@ public partial class MainWindow : Window
 
     private void AddLog(string source, string message)
     {
-        string line = $"[{DateTime.Now:HH:mm:ss}] [{source}] {message}";
-        LogList.Items.Add(line);
-        LogList.ScrollIntoView(line);
+        AddStyledLog(source, message, null, null, FontWeights.Normal);
     }
 
     private void ClearLog_Click(object sender, RoutedEventArgs e) => LogList.Items.Clear();
