@@ -1,5 +1,5 @@
 #define MyAppName "FT8 Hunter"
-#define MyAppVersion "0.4.1"
+#define MyAppVersion "0.5.0"
 #define MyAppPublisher "IU2JMZ"
 #define MyAppExeName "FT8Hunter_Test.exe"
 
@@ -12,7 +12,7 @@ DefaultDirName={autopf}\FT8 Hunter
 DefaultGroupName=FT8 Hunter
 DisableProgramGroupPage=yes
 OutputDir=..\installer-output
-OutputBaseFilename=FT8Hunter_Setup_v0.4.1
+OutputBaseFilename=FT8Hunter_Setup_v0.5.0
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
@@ -52,5 +52,5 @@ end;
 
 procedure InitializeWizard();
 begin
-  { La scelta OmniRig resta sempre facoltativa. Se gia' presente, l'utente puo' lasciare la casella non selezionata. }
+  { OmniRig resta facoltativo. }
 end;
