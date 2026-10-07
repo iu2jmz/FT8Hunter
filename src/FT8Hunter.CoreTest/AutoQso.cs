@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.RegularExpressions;
 using System.Windows;
 using HamDigiSharp.Models;
@@ -30,6 +31,7 @@ public partial class MainWindow
     private int? _autoTxParity;
     private int _autoAttempts;
     private bool _autoTxInProgress;
+    private ProcessPriorityClass? _previousProcessPriority;
 
     private async void StartAutoQso_Click(object sender, RoutedEventArgs e)
     {
@@ -70,7 +72,8 @@ public partial class MainWindow
         _autoTxParity = null;
         _autoAttempts = 0;
 
-        ConfigureFastQsoDecoder(null, 0, QsoProgress.None);
+        EnterAutoQsoPerformanceMode();
+        ConfigureAutoQsoDecoder(null, 0, QsoProgress.None);
 
         string cq = $"CQ {myCall} {myGrid}";
         AutoQsoStatus.Text = "Auto QSO: invio CQ...";
@@ -105,6 +108,7 @@ public partial class MainWindow
         _autoTxInProgress = false;
 
         RestoreRealtimeBrowseDecoder();
+        ExitAutoQsoPerformanceMode();
 
         if (AutoQsoStatus is not null)
             AutoQsoStatus.Text = "Auto QSO fermo";
@@ -183,7 +187,7 @@ public partial class MainWindow
 
             // Solo dopo avere armato il TX restringiamo il decoder sul corrispondente:
             // meno candidati e finestra audio stretta = risposta successiva più rapida.
-            ConfigureFastQsoDecoder(dx, callerHz, QsoProgress.Called);
+            ConfigureAutoQsoDecoder(dx, callerHz, QsoProgress.Called);
             return;
         }
 
@@ -218,7 +222,7 @@ public partial class MainWindow
                 AddLog("SCHED", $"DECODE {decodeAt:HH:mm:ss.fff} UTC | RX SLOT {windowStart:HH:mm:ss.fff} | TARGET RR73 {replyTarget:HH:mm:ss.fff} | margine {targetMarginMs:F0} ms");
                 AutoQsoStatus.Text = $"QSO con {dx}: R-report {payload}, target {replyTarget:HH:mm:ss} UTC";
                 _ = ReplacePendingFinalTxAsync(rr73, dx, replyTarget, $"R-report {payload} ricevuto");
-                ConfigureFastQsoDecoder(dx, addressed.Result.FrequencyHz, QsoProgress.ReportReceived);
+                ConfigureAutoQsoDecoder(dx, addressed.Result.FrequencyHz, QsoProgress.ReportReceived);
                 return;
             }
 
@@ -443,6 +447,7 @@ public partial class MainWindow
         CancelRetryTimer();
         _autoQsoState = AutoQsoState.Complete;
         RestoreRealtimeBrowseDecoder();
+        ExitAutoQsoPerformanceMode();
         AutoQsoStatus.Text = $"QSO COMPLETATO con {dx} — {reason}";
         AddLog("AUTO", $"QSO COMPLETATO con {dx} — {reason}");
 
@@ -450,7 +455,7 @@ public partial class MainWindow
         _autoQsoCts = null;
     }
 
-    private void ConfigureFastQsoDecoder(string? hisCall, double qsoFrequencyHz, QsoProgress progress)
+    private void ConfigureAutoQsoDecoder(string? hisCall, double qsoFrequencyHz, QsoProgress progress)
     {
         if (_rt is null) return;
 
@@ -458,8 +463,12 @@ public partial class MainWindow
         string myGrid = MyGridBox.Text.Trim().ToUpperInvariant();
         bool focused = !string.IsNullOrWhiteSpace(hisCall) && qsoFrequencyHz is >= 200 and <= 3000;
 
-        _rt.FreqLow = focused ? Math.Max(200, qsoFrequencyHz - 250) : 200;
-        _rt.FreqHigh = focused ? Math.Min(3000, qsoFrequencyHz + 250) : 3000;
+        // 0.6.5 riduceva troppo sensibilità e candidati. Su PC lento era più veloce
+        // ma perdeva troppe risposte. Qui torniamo a NORMAL per il CQ iniziale.
+        // Solo dopo avere scelto il corrispondente restringiamo la banda, mantenendo
+        // comunque DecoderDepth.Normal per non perdere R-report / RR73.
+        _rt.FreqLow = focused ? Math.Max(200, qsoFrequencyHz - 220) : 200;
+        _rt.FreqHigh = focused ? Math.Min(3000, qsoFrequencyHz + 220) : 3000;
 
         _rt.RealTimeOptions = new DecoderOptions
         {
@@ -467,20 +476,52 @@ public partial class MainWindow
             MyBaseCall = myCall,
             MyGrid = myGrid,
             HisCall = hisCall ?? string.Empty,
-            DecoderDepth = DecoderDepth.Fast,
-            MaxCandidates = focused ? 24 : 40,
+            DecoderDepth = DecoderDepth.Normal,
+            MaxCandidates = focused ? 36 : 75,
             MinSyncDb = 2.1f,
             ApDecode = !string.IsNullOrWhiteSpace(myCall),
             QsoProgress = progress,
             QsoFrequencyHz = focused ? qsoFrequencyHz : 0,
             TxFrequencyHz = _txFreqLock ? _lockedTxWaterfallHz : _txWaterfallHz,
-            FreqTolerance = focused ? 250 : 200,
+            FreqTolerance = focused ? 220 : 200,
             AveragingEnabled = false
         };
 
-        AddLog("FAST", focused
-            ? $"Decoder FAST focalizzato su {hisCall} @ {qsoFrequencyHz:F0} Hz | 24 candidati | ±250 Hz."
-            : "Decoder FAST CQ attivo | 40 candidati | banda audio completa.");
+        AddLog("PERF", focused
+            ? $"QSO focalizzato su {hisCall} @ {qsoFrequencyHz:F0} Hz | NORMAL | 36 candidati | ±220 Hz."
+            : "CQ Auto QSO: decoder NORMAL completo | 75 candidati.");
+    }
+
+    private void EnterAutoQsoPerformanceMode()
+    {
+        try
+        {
+            using Process process = Process.GetCurrentProcess();
+            _previousProcessPriority ??= process.PriorityClass;
+            process.PriorityClass = ProcessPriorityClass.High;
+            AddLog("PERF", "Priorità processo HIGH durante Auto QSO.");
+        }
+        catch (Exception ex)
+        {
+            AddLog("PERF", "Priorità HIGH non disponibile: " + ex.Message);
+        }
+    }
+
+    private void ExitAutoQsoPerformanceMode()
+    {
+        if (!_previousProcessPriority.HasValue)
+            return;
+
+        try
+        {
+            using Process process = Process.GetCurrentProcess();
+            process.PriorityClass = _previousProcessPriority.Value;
+        }
+        catch { }
+        finally
+        {
+            _previousProcessPriority = null;
+        }
     }
 
     private void RestoreRealtimeBrowseDecoder()
