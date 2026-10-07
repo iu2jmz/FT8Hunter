@@ -39,6 +39,13 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _poll;
     private float[] _monoBuffer = Array.Empty<float>();
 
+    // Clock audio indipendente dai callback WaveIn: il timestamp dei blocchi viene
+    // ricostruito contando i frame dal momento in cui la cattura viene avviata.
+    // In questo modo un callback ritardato dalla CPU non sposta l'allineamento UTC.
+    private DateTimeOffset _audioCaptureEpochUtc;
+    private long _audioFramesDelivered;
+    private bool _audioClockArmed;
+
     private bool _splitEnabled;
     private long _splitRxFrequency;
     private int _txWaterfallHz = SplitTxAudioHz;
@@ -798,9 +805,17 @@ public partial class MainWindow : Window
             {
                 if (a.Exception is not null) Dispatcher.Invoke(() => AddLog("AUDIO", a.Exception.Message));
             };
+
+            // L'epoch viene fissato PRIMA di StartRecording. Da qui in poi il tempo
+            // dei campioni dipende solo dal numero di frame acquisiti, non da quando
+            // Windows riesce a consegnare il callback DataAvailable.
+            _audioFramesDelivered = 0;
+            _audioCaptureEpochUtc = DateTimeOffset.UtcNow;
+            _audioClockArmed = true;
             _waveIn.StartRecording();
+
             Ft8Status.Text = $"FT8 Engine attivo — {dev.Display}";
-            AddLog("FT8", $"RX FT8 avviata; early decode 88% | buffer audio 50 ms | AP {(string.IsNullOrWhiteSpace(rtMyCall) ? "OFF" : "ON")} per {rtMyCall}.");
+            AddLog("FT8", $"RX FT8 avviata; audio sample-clock UTC | early decode 88% | buffer 50 ms | AP {(string.IsNullOrWhiteSpace(rtMyCall) ? "OFF" : "ON")} per {rtMyCall}.");
         }
         catch (Exception ex)
         {
@@ -827,11 +842,25 @@ public partial class MainWindow : Window
         }
         try
         {
-            // WaveIn consegna il buffer dopo averlo acquisito. RealTimeDecoder vuole
-            // invece il timestamp UTC del PRIMO campione: sottraiamo quindi la durata
-            // del buffer per non introdurre uno slittamento artificiale degli slot FT8.
-            DateTimeOffset firstSampleUtc = DateTimeOffset.UtcNow -
-                TimeSpan.FromSeconds(frames / 48_000.0);
+            if (!_audioClockArmed)
+                return;
+
+            // NON usiamo DateTimeOffset.UtcNow del callback: su un PC lento il callback
+            // può essere consegnato centinaia di ms o secondi dopo. Il timestamp viene
+            // ricostruito dal sample counter, quindi resta stabile anche sotto carico.
+            long firstFrame = Interlocked.Add(ref _audioFramesDelivered, frames) - frames;
+            DateTimeOffset firstSampleUtc = _audioCaptureEpochUtc +
+                TimeSpan.FromSeconds(firstFrame / 48_000.0);
+
+            if (firstFrame == 0)
+            {
+                DateTimeOffset callbackUtc = DateTimeOffset.UtcNow;
+                double callbackDelayMs = (callbackUtc - _audioCaptureEpochUtc).TotalMilliseconds;
+                Dispatcher.BeginInvoke(() =>
+                    AddLog("AUDIO", $"UTC sample-clock: epoch {_audioCaptureEpochUtc:HH:mm:ss.fff} | primo callback dopo {callbackDelayMs:F0} ms."),
+                    DispatcherPriority.Background);
+            }
+
             _rt.AddSamples(mono, firstSampleUtc);
         }
         catch (Exception ex) { Dispatcher.Invoke(() => AddLog("FT8", "Decode error: " + ex.Message)); }
@@ -864,10 +893,12 @@ public partial class MainWindow : Window
     {
         if (_waveIn is not null)
         {
+            _audioClockArmed = false;
             _waveIn.DataAvailable -= OnAudioData;
             try { _waveIn.StopRecording(); } catch { }
             _waveIn.Dispose();
             _waveIn = null;
+            Interlocked.Exchange(ref _audioFramesDelivered, 0);
         }
         if (_rt is not null)
         {
