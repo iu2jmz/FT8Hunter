@@ -39,8 +39,8 @@ considerato attendibile dal sistema.
 Build marker: v1.0.4 TLS Qt5 fix.
 
 
-## v1.0.5 - Refresh automatico e filtro country
+## v1.0.6 - Refresh automatico e filtro country sulla banda
 
 - refresh automatico del Worked Before da Log4OM MySQL ogni 60 secondi, disattivabile dalla configurazione
-- nuovo filtro selezionabile: **Escludi country/DXCC gia lavorati (tutte le bande)**
-- il filtro considera il DXCC gia lavorato su qualsiasi banda e modo e rispetta il bypass BP
+- nuovo filtro selezionabile: **Escludi country/DXCC gia lavorati sulla banda corrente**
+- il filtro considera il DXCC gia lavorato soltanto sulla banda attualmente selezionata; FT8 e FT4 sono trattati insieme e il filtro rispetta il bypass BP

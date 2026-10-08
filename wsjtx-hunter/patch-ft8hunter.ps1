@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory=$true)][string]$SourceDir,
-    [string]$HunterVersion = "1.0.5"
+    [string]$HunterVersion = "1.0.6"
 )
 
 $ErrorActionPreference = "Stop"
@@ -165,7 +165,7 @@ Replace-Required "widgets/mainwindow.cpp" @'
 Write-Host "Applied FT8 Hunter $HunterVersion branding + read-only Log4OM MySQL integration."
 
 
-# FT8 Hunter 1.0.5: filtro country/DXCC gia' lavorati.
+# FT8 Hunter 1.0.6: filtro country/DXCC gia' lavorati.
 Replace-Required "widgets/mainwindow.ui" @'
     <addaction name="actionHideB4"/>
     <addaction name="actionHideToday"/>
@@ -199,7 +199,7 @@ Replace-Required "widgets/mainwindow.ui" @'
     <bool>true</bool>
    </property>
    <property name="text">
-    <string>Escludi country/DXCC gia lavorati (tutte le bande)</string>
+    <string>Escludi country/DXCC gia lavorati sulla banda corrente</string>
    </property>
   </action>
   <action name="actionHideToday">
@@ -232,7 +232,7 @@ Replace-Required "widgets/mainwindow.cpp" @'
 '@ @'
             if (callB4onBand && ui->actionHideB4->isChecked() && !ui->cbBypass->isChecked()) filtered = true;
           }
-          // FT8 Hunter: escludi DXCC gia' lavorati su qualsiasi banda o modo.
+          // FT8 Hunter: escludi DXCC gia' lavorati sulla banda corrente, indipendentemente da FT8/FT4.
           if (ui->actionHideWorkedCountry->isChecked()) {
             bool callB4Any;
             bool countryB4Any;
@@ -242,7 +242,7 @@ Replace-Required "widgets/mainwindow.cpp" @'
             bool ITUZoneB4Any;
             auto const& looked_up = m_logBook.countries ()->lookup (deCall);
             m_logBook.match (deCall, QString {}, deGrid, looked_up, callB4Any, countryB4Any, gridB4Any,
-              continentB4Any, CQZoneB4Any, ITUZoneB4Any);
+              continentB4Any, CQZoneB4Any, ITUZoneB4Any, m_currentBand);
             if (!looked_up.entity_name.isEmpty () && countryB4Any && !ui->cbBypass->isChecked()) filtered = true;
           }
           // search for continents
@@ -255,7 +255,7 @@ Replace-Required "widgets/mainwindow.cpp" @'
 '@ @'
                       if (callB4onBand && ui->actionHideB4->isChecked() && !ui->cbBypass->isChecked()) filtered = true;
                     }
-                    // FT8 Hunter: escludi DXCC gia' lavorati su qualsiasi banda o modo.
+                    // FT8 Hunter: escludi DXCC gia' lavorati sulla banda corrente, indipendentemente da FT8/FT4.
                     if (ui->actionHideWorkedCountry->isChecked()) {
                       bool callB4Any;
                       bool countryB4Any;
@@ -265,7 +265,7 @@ Replace-Required "widgets/mainwindow.cpp" @'
                       bool ITUZoneB4Any;
                       auto const& looked_up = m_logBook.countries ()->lookup (deCall);
                       m_logBook.match (deCall, QString {}, deGrid, looked_up, callB4Any, countryB4Any, gridB4Any,
-                        continentB4Any, CQZoneB4Any, ITUZoneB4Any);
+                        continentB4Any, CQZoneB4Any, ITUZoneB4Any, m_currentBand);
                       if (!looked_up.entity_name.isEmpty () && countryB4Any && !ui->cbBypass->isChecked()) filtered = true;
                     }
                     // search for continents
