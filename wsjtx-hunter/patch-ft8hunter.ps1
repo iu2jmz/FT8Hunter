@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory=$true)][string]$SourceDir,
-    [string]$HunterVersion = "1.0.6"
+    [string]$HunterVersion = "1.0.7"
 )
 
 $ErrorActionPreference = "Stop"
@@ -29,6 +29,10 @@ Copy-Item "wsjtx-hunter/log4om/Log4OmMysql.hpp" (Join-Path $hunterDir "Log4OmMys
 Copy-Item "wsjtx-hunter/log4om/Log4OmMysql.cpp" (Join-Path $hunterDir "Log4OmMysql.cpp") -Force
 Copy-Item "wsjtx-hunter/log4om/Log4OmMysqlDialog.hpp" (Join-Path $hunterDir "Log4OmMysqlDialog.hpp") -Force
 Copy-Item "wsjtx-hunter/log4om/Log4OmMysqlDialog.cpp" (Join-Path $hunterDir "Log4OmMysqlDialog.cpp") -Force
+Copy-Item "wsjtx-hunter/cluster/DxFunCluster.hpp" (Join-Path $hunterDir "DxFunCluster.hpp") -Force
+Copy-Item "wsjtx-hunter/cluster/DxFunCluster.cpp" (Join-Path $hunterDir "DxFunCluster.cpp") -Force
+Copy-Item "wsjtx-hunter/cluster/DxFunClusterPanel.hpp" (Join-Path $hunterDir "DxFunClusterPanel.hpp") -Force
+Copy-Item "wsjtx-hunter/cluster/DxFunClusterPanel.cpp" (Join-Path $hunterDir "DxFunClusterPanel.cpp") -Force
 
 # Compila il modulo Log4OM/MySQL insieme all'applicazione principale.
 Replace-Required "CMakeLists.txt" @'
@@ -38,6 +42,8 @@ Replace-Required "CMakeLists.txt" @'
   widgets/mainwindow.cpp
   FT8Hunter/Log4OmMysql.cpp
   FT8Hunter/Log4OmMysqlDialog.cpp
+  FT8Hunter/DxFunCluster.cpp
+  FT8Hunter/DxFunClusterPanel.cpp
   Configuration.cpp
 '@
 
@@ -46,8 +52,11 @@ Replace-Required "widgets/mainwindow.cpp" @'
 #include "Network/eqsl.h"
 '@ @'
 #include "Network/eqsl.h"
+#include "models/FrequencyList.hpp"
+#include "models/Modes.hpp"
 #include "FT8Hunter/Log4OmMysql.hpp"
 #include "FT8Hunter/Log4OmMysqlDialog.hpp"
+#include "FT8Hunter/DxFunClusterPanel.hpp"
 '@
 
 Replace-Required "widgets/mainwindow.cpp" @'
@@ -66,6 +75,108 @@ Replace-Required "widgets/mainwindow.cpp" @'
           showStatusMessage (tr ("FT8 Hunter: ricarico il log Log4OM/MySQL..."));
           m_logBook.rescan ();
         }
+    });
+
+  // FT8 Hunter: DXFun Cluster telnet dxfun.com:8000.
+  // Ogni spot viene classificato usando le frequenze FT8/FT4 configurate in WSJT-X,
+  // quindi il filtro non dipende dal testo/commento dello spot.
+  auto evaluateDxFunSpot = [this] (QString const& call, quint64 spotHz) -> DxFunEvaluation {
+      DxFunEvaluation out;
+      out.spotHz = spotHz;
+
+      qint64 bestDistance = std::numeric_limits<qint64>::max ();
+      auto const region = m_config.region ();
+      for (auto const& item : m_config.frequencies ()->frequency_list ())
+        {
+          if (item.mode_ != Modes::FT8 && item.mode_ != Modes::FT4) continue;
+          if (item.region_ != IARURegions::ALL && item.region_ != region) continue;
+
+          auto const offset = static_cast<qint64> (spotHz) - static_cast<qint64> (item.frequency_);
+          // Gli spot cluster riportano normalmente la frequenza RF del segnale:
+          // accetta il dial FT8/FT4 e la finestra audio fino a 5 kHz.
+          if (offset < -150 || offset > 5000) continue;
+
+          auto distance = offset < 0 ? -offset : offset;
+          if (item.region_ == region && distance > 0) --distance;
+          if (distance >= bestDistance) continue;
+
+          bestDistance = distance;
+          out.digital = true;
+          out.mode = QString::fromLatin1 (Modes::name (item.mode_));
+          out.dialHz = item.frequency_;
+          out.offsetHz = static_cast<int> (offset);
+          out.band = m_config.bands ()->find (item.frequency_);
+        }
+
+      if (!out.digital || out.band.isEmpty ()) return out;
+
+      auto const& entity = m_logBook.countries ()->lookup (call);
+      out.country = entity.entity_name;
+      if (out.country.isEmpty ()) return out;
+
+      bool callB4 = true;
+      bool countryB4 = true;
+      bool gridB4 = true;
+      bool continentB4 = true;
+      bool cqB4 = true;
+      bool ituB4 = true;
+
+      // NEW DXCC: mai lavorato in nessuna banda; FT8 e FT4 sono uniti.
+      m_logBook.match (call, QString {}, QString {}, entity,
+                       callB4, countryB4, gridB4, continentB4, cqB4, ituB4);
+      out.newDxcc = !countryB4;
+
+      // NEW su banda: DXCC mai lavorato sulla banda dello spot; FT8 e FT4 sono uniti.
+      callB4 = countryB4 = gridB4 = continentB4 = cqB4 = ituB4 = true;
+      m_logBook.match (call, QString {}, QString {}, entity,
+                       callB4, countryB4, gridB4, continentB4, cqB4, ituB4, out.band);
+      out.newBand = !countryB4;
+      return out;
+    };
+
+  auto tuneDxFunSpot = [this] (DxFunTuneRequest const& request) -> bool {
+      // Non interrompere una trasmissione o una sequenza Auto in corso.
+      if (m_transmitting || m_tune || m_auto) return false;
+      if (request.mode != QStringLiteral ("FT8") && request.mode != QStringLiteral ("FT4")) return false;
+
+      ui->pbBandHopping->setChecked (false);
+      if (request.mode == QStringLiteral ("FT8") && m_mode != QStringLiteral ("FT8"))
+        on_actionFT8_triggered ();
+      else if (request.mode == QStringLiteral ("FT4") && m_mode != QStringLiteral ("FT4"))
+        on_actionFT4_triggered ();
+
+      QTimer::singleShot (120, this, [this, request] {
+          auto const row = m_config.frequencies ()->best_working_frequency (request.dialHz);
+          if (row < 0)
+            {
+              showStatusMessage (tr ("DXFun: frequenza %1 %2 non disponibile")
+                                 .arg (request.band).arg (request.mode));
+              return;
+            }
+
+          ui->bandComboBox->setCurrentIndex (row);
+          on_bandComboBox_activated (row);
+
+          auto offset = request.offsetHz;
+          if (offset < ui->RxFreqSpinBox->minimum ()) offset = ui->RxFreqSpinBox->minimum ();
+          if (offset > ui->RxFreqSpinBox->maximum ()) offset = ui->RxFreqSpinBox->maximum ();
+          ui->RxFreqSpinBox->setValue (offset);
+
+          showStatusMessage (
+            tr ("DXFun -> %1 %2 | %3 | %4")
+              .arg (request.band).arg (request.mode).arg (request.callsign).arg (request.status));
+        });
+      return true;
+    };
+
+  auto * dxFunPanel = new DxFunClusterPanel {
+    m_config.my_callsign (), evaluateDxFunSpot, tuneDxFunSpot, m_settings, this};
+  addDockWidget (Qt::BottomDockWidgetArea, dxFunPanel);
+  dxFunPanel->hide ();
+
+  auto * dxFunAction = hunterMenu->addAction (tr ("DXFun Cluster..."));
+  connect (dxFunAction, &QAction::triggered, [dxFunPanel] {
+      dxFunPanel->openAndConnect ();
     });
 
   // FT8 Hunter: aggiorna automaticamente Worked Before da Log4OM.
@@ -165,7 +276,7 @@ Replace-Required "widgets/mainwindow.cpp" @'
 Write-Host "Applied FT8 Hunter $HunterVersion branding + read-only Log4OM MySQL integration."
 
 
-# FT8 Hunter 1.0.6: filtro country/DXCC gia' lavorati.
+# FT8 Hunter 1.0.7: filtro country/DXCC gia' lavorati.
 Replace-Required "widgets/mainwindow.ui" @'
     <addaction name="actionHideB4"/>
     <addaction name="actionHideToday"/>
@@ -271,4 +382,4 @@ Replace-Required "widgets/mainwindow.cpp" @'
                     // search for continents
 '@
 
-Write-Host "Applied FT8 Hunter $HunterVersion auto-refresh + worked-country filter."
+Write-Host "Applied FT8 Hunter $HunterVersion auto-refresh + worked-country filter + DXFun cluster."

@@ -44,3 +44,14 @@ Build marker: v1.0.4 TLS Qt5 fix.
 - refresh automatico del Worked Before da Log4OM MySQL ogni 60 secondi, disattivabile dalla configurazione
 - nuovo filtro selezionabile: **Escludi country/DXCC gia lavorati sulla banda corrente**
 - il filtro considera il DXCC gia lavorato soltanto sulla banda attualmente selezionata; FT8 e FT4 sono trattati insieme e il filtro rispetta il bypass BP
+
+
+## v1.0.7 - DXFun Cluster FT8/FT4 Hunter
+
+- connessione Telnet automatica a `dxfun.com:8000`
+- lettura continua di tutti gli spot cluster, con selezione dei soli spot che cadono nelle frequenze FT8/FT4 configurate in WSJT-X
+- classificazione automatica `NEW DXCC` e `NEW su banda` usando il database Log4OM/MySQL gia' caricato nel Worked Before
+- FT8 e FT4 sono considerati insieme per stabilire se un DXCC e' gia' lavorato
+- pannello dedicato con Connetti/Disconnetti, AUTO QSY, filtri NEW DXCC / NEW su banda, FT8 / FT4, visualizzazione spot e pulsante Vai allo spot
+- AUTO QSY con priorita' NEW DXCC > NEW su banda, permanenza minima configurabile e blocco durante TX/Auto/Tune
+- la QSY imposta il modo corretto, il dial FT8/FT4 della banda e il marker RX sulla frequenza dello spot
