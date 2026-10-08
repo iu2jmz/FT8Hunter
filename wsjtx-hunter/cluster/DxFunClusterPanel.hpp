@@ -9,6 +9,7 @@
 
 class QCheckBox;
 class QLabel;
+class QLineEdit;
 class QPushButton;
 class QSettings;
 class QSpinBox;
@@ -44,18 +45,42 @@ struct DxFunTuneRequest
 class DxFunClusterPanel final : public QDockWidget
 {
 public:
+  enum class DecodeAction
+  {
+    None,
+    StartQso,
+    CompleteQso
+  };
+
   using Evaluator = std::function<DxFunEvaluation (QString const&, quint64)>;
   using Tuner = std::function<bool (DxFunTuneRequest const&)>;
+  using AbortHandler = std::function<void ()>;
 
-  DxFunClusterPanel (QString const& callsign,
+  DxFunClusterPanel (QString const& defaultCallsign,
                      Evaluator evaluator,
                      Tuner tuner,
+                     AbortHandler abortHandler,
                      QSettings * settings,
                      QWidget * parent = nullptr);
 
   void openAndConnect ();
 
+  DecodeAction observeDecode (QString const& deCall,
+                              QString const& cleanText,
+                              int audioOffset,
+                              QString const& myCall);
+  bool qsoActive () const;
+  int nextTxPowerPercent ();
+  void qsoLogged ();
+
 private:
+  enum class HuntState
+  {
+    Idle,
+    Listening,
+    Qso
+  };
+
   struct Candidate
   {
     DxFunTuneRequest request;
@@ -64,6 +89,7 @@ private:
   };
 
   void setWanted (bool wanted);
+  void reconnectForCallsign ();
   void handleSpot (QString const& callsign, quint64 frequencyHz,
                    QString const& comment, QString const& spotter,
                    QDateTime const& receivedUtc);
@@ -72,15 +98,21 @@ private:
   void queueCandidate (Candidate const& candidate);
   void attemptAutoQsy ();
   void tuneSelected ();
+  void beginHunt (Candidate const& candidate);
+  void listenTimeout ();
+  void qsoTimeout ();
+  void resetHunt (QString const& status, bool abortRadio);
   void updateCounters ();
   void saveOption (QString const& key, QVariant const& value);
 
-  QString callsign_;
+  QString defaultCallsign_;
   Evaluator evaluator_;
   Tuner tuner_;
+  AbortHandler abortHandler_;
   QSettings * settings_;
   DxFunClusterClient * client_;
 
+  QLineEdit * clusterCall_;
   QPushButton * connectButton_;
   QPushButton * autoQsyButton_;
   QCheckBox * newDxccCheck_;
@@ -95,9 +127,16 @@ private:
   QPushButton * goButton_;
   QPushButton * clearButton_;
   QTimer * settleTimer_;
+  QTimer * listenTimer_;
+  QTimer * qsoTimer_;
 
   Candidate pending_;
   bool pendingValid_ {false};
+  Candidate active_;
+  HuntState huntState_ {HuntState::Idle};
+  bool answered_ {false};
+  int txCycles_ {0};
+  int lastPowerPercent_ {50};
   QDateTime lastQsyUtc_;
   QHash<QString, QDateTime> seen_;
   quint64 allSpots_ {0};

@@ -55,3 +55,15 @@ Build marker: v1.0.4 TLS Qt5 fix.
 - pannello dedicato con Connetti/Disconnetti, AUTO QSY, filtri NEW DXCC / NEW su banda, FT8 / FT4, visualizzazione spot e pulsante Vai allo spot
 - AUTO QSY con priorita' NEW DXCC > NEW su banda, permanenza minima configurabile e blocco durante TX/Auto/Tune
 - la QSY imposta il modo corretto, il dial FT8/FT4 della banda e il marker RX sulla frequenza dello spot
+
+
+## v1.0.8 - DXFun Hunter automatico HF
+
+- cluster limitato alle sole bande HF **80m, 60m, 40m, 30m, 20m, 17m, 15m, 12m e 10m**
+- campo dedicato per il nominativo di login a DXFun
+- dopo una AUTO QSY FT8 Hunter ascolta la stazione spottata per **150 secondi**
+- se il nominativo non viene decodificato entro 150 s, la caccia termina ed il cluster torna pronto per un nuovo spot
+- quando il nominativo viene realmente decodificato, parte il QSO automatico FT8/FT4 con timeout massimo di **3 minuti**
+- QSO concluso su 73/RR73: registrazione nel **log locale del programma**; il database MySQL Log4OM resta in sola lettura
+- la rampa RF parte dal **50%** e aumenta di **9 punti percentuali** ad ogni successiva trasmissione senza risposta, fino al 100%; dopo una risposta la potenza resta congelata al livello raggiunto
+- la regolazione RF CAT usa `RIG_LEVEL_RFPOWER` sul backend Hamlib quando il ricetrasmettitore configurato lo supporta

@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory=$true)][string]$SourceDir,
-    [string]$HunterVersion = "1.0.7"
+    [string]$HunterVersion = "1.0.8"
 )
 
 $ErrorActionPreference = "Stop"
@@ -91,6 +91,13 @@ Replace-Required "widgets/mainwindow.cpp" @'
           if (item.mode_ != Modes::FT8 && item.mode_ != Modes::FT4) continue;
           if (item.region_ != IARURegions::ALL && item.region_ != region) continue;
 
+          auto const band = m_config.bands ()->find (item.frequency_);
+          static QStringList const hunterBands {
+            QStringLiteral ("80m"), QStringLiteral ("60m"), QStringLiteral ("40m"),
+            QStringLiteral ("30m"), QStringLiteral ("20m"), QStringLiteral ("17m"),
+            QStringLiteral ("15m"), QStringLiteral ("12m"), QStringLiteral ("10m")};
+          if (!hunterBands.contains (band)) continue;
+
           auto const offset = static_cast<qint64> (spotHz) - static_cast<qint64> (item.frequency_);
           // Gli spot cluster riportano normalmente la frequenza RF del segnale:
           // accetta il dial FT8/FT4 e la finestra audio fino a 5 kHz.
@@ -105,7 +112,7 @@ Replace-Required "widgets/mainwindow.cpp" @'
           out.mode = QString::fromLatin1 (Modes::name (item.mode_));
           out.dialHz = item.frequency_;
           out.offsetHz = static_cast<int> (offset);
-          out.band = m_config.bands ()->find (item.frequency_);
+          out.band = band;
         }
 
       if (!out.digital || out.band.isEmpty ()) return out;
@@ -169,8 +176,17 @@ Replace-Required "widgets/mainwindow.cpp" @'
       return true;
     };
 
+  auto abortDxFunQso = [this] {
+      if (m_auto) auto_tx_mode (false);
+      if (m_transmitting) ui->stopTxButton->click ();
+      clearDX ();
+      monitor (true);
+    };
+
   auto * dxFunPanel = new DxFunClusterPanel {
-    m_config.my_callsign (), evaluateDxFunSpot, tuneDxFunSpot, m_settings, this};
+    m_config.my_callsign (), evaluateDxFunSpot, tuneDxFunSpot,
+    abortDxFunQso, m_settings, this};
+  g_dxFunPanel = dxFunPanel;
   addDockWidget (Qt::BottomDockWidgetArea, dxFunPanel);
   dxFunPanel->hide ();
 
@@ -212,9 +228,11 @@ class WorkedBefore::impl final
     return worked;
   }
 
-  worked_before_database_type loader_mysql (Log4OmMysqlSettings const& settings, AD1CCty const * prefixes)
+  worked_before_database_type loader_mysql (Log4OmMysqlSettings const& settings, QString const& localPath, AD1CCty const * prefixes)
   {
-    worked_before_database_type worked;
+    // MySQL remains read-only. Start with the local WSJT-X ADIF so Hunter-made
+    // QSOs remain part of Worked Before after each automatic MySQL refresh.
+    auto worked = loader (localPath, prefixes);
     QString error;
     auto const rows = Log4OmMysql::loadWorkedQsos (settings, &error);
     if (!error.isEmpty ())
@@ -257,7 +275,7 @@ Replace-Required "logbook/WorkedBefore.cpp" @'
     auto const mysql = Log4OmMysql::loadSettings ();
     if (mysql.enabled)
       {
-        async_loader_ = QtConcurrent::run (loader_mysql, mysql, &prefixes_);
+        async_loader_ = QtConcurrent::run (loader_mysql, mysql, path_, &prefixes_);
       }
     else
       {
@@ -276,7 +294,7 @@ Replace-Required "widgets/mainwindow.cpp" @'
 Write-Host "Applied FT8 Hunter $HunterVersion branding + read-only Log4OM MySQL integration."
 
 
-# FT8 Hunter 1.0.7: filtro country/DXCC gia' lavorati.
+# FT8 Hunter 1.0.8: filtro country/DXCC gia' lavorati.
 Replace-Required "widgets/mainwindow.ui" @'
     <addaction name="actionHideB4"/>
     <addaction name="actionHideToday"/>
@@ -383,3 +401,236 @@ Replace-Required "widgets/mainwindow.cpp" @'
 '@
 
 Write-Host "Applied FT8 Hunter $HunterVersion auto-refresh + worked-country filter + DXFun cluster."
+
+
+# FT8 Hunter 1.0.8: puntatore al pannello cluster usato dai hook decoder/TX.
+Replace-Required "widgets/mainwindow.cpp" @'
+QString earlyDecodes = "";  //ft8md
+'@ @'
+QString earlyDecodes = "";  //ft8md
+DxFunClusterPanel * g_dxFunPanel = nullptr;
+'@
+
+# FT8 Hunter 1.0.8: quando la stazione spottata viene realmente decodificata,
+# passa dalla finestra di ascolto di 150 s al QSO automatico WSJT-X.
+Replace-Required "widgets/mainwindow.cpp" @'
+        QString text = decodedtext.string().replace("<","").replace(">","");   // for Wait & Reply/Call and filtering
+'@ @'
+        QString text = decodedtext.string().replace("<","").replace(">","");   // for Wait & Reply/Call and filtering
+
+        if (g_dxFunPanel && (m_mode=="FT8" || m_mode=="FT4")) {
+          QString hunterCall;
+          QString hunterGrid;
+          decodedtext.deCallAndGrid(hunterCall,hunterGrid);
+          auto const hunterAction =
+            g_dxFunPanel->observeDecode(hunterCall, text,
+                                        decodedtext.frequencyOffset(),
+                                        m_config.my_callsign());
+
+          if (hunterAction == DxFunClusterPanel::DecodeAction::StartQso) {
+            tx_watchdog(false);
+            m_bDoubleClicked = true;
+            processMessage(decodedtext0);
+            ui->dxCallEntry->setText(hunterCall);
+            ui->RxFreqSpinBox->setValue(decodedtext.frequencyOffset());
+            auto_tx_mode(true);
+          } else if (hunterAction == DxFunClusterPanel::DecodeAction::CompleteQso) {
+            // Lascia terminare l'elaborazione del decode e poi registra localmente.
+            QTimer::singleShot (500, this, [this] {
+              if (m_auto) cease_auto_Tx_after_QSO ();
+              if (!m_tune) {
+                on_logQSOButton_clicked ();
+                if (m_logDlg->isVisible ()) m_logDlg->accept ();
+              }
+              if (g_dxFunPanel) g_dxFunPanel->qsoLogged ();
+            });
+          }
+        }
+'@
+
+# FT8 Hunter 1.0.8: rampa RF del 7300 ad ogni trasmissione Hunter.
+Replace-Required "widgets/mainwindow.cpp" @'
+    transmit (snr);
+'@ @'
+    if (g_dxFunPanel && g_dxFunPanel->qsoActive ()) {
+      auto const hunterPower = g_dxFunPanel->nextTxPowerPercent ();
+      if (hunterPower >= 0)
+        m_config.transceiver_rf_power_percent (hunterPower);
+    }
+    transmit (snr);
+'@
+
+# Espone una percentuale RF nella TransceiverState.
+Replace-Required "Transceiver/Transceiver.hpp" @'
+      , level_ {0}
+      , power_ {0}
+'@ @'
+      , level_ {0}
+      , rf_power_percent_ {-1}
+      , power_ {0}
+'@
+
+Replace-Required "Transceiver/Transceiver.hpp" @'
+    int level () const {return level_;}
+    unsigned int power () const {return power_;}
+'@ @'
+    int level () const {return level_;}
+    int rf_power_percent () const {return rf_power_percent_;}
+    unsigned int power () const {return power_;}
+'@
+
+Replace-Required "Transceiver/Transceiver.hpp" @'
+    void level (int strength) {level_ = strength;}
+    void power (unsigned int mwpower) {power_ = mwpower;}
+'@ @'
+    void level (int strength) {level_ = strength;}
+    void rf_power_percent (int percent) {rf_power_percent_ = percent;}
+    void power (unsigned int mwpower) {power_ = mwpower;}
+'@
+
+Replace-Required "Transceiver/Transceiver.hpp" @'
+    int level_;
+    unsigned int power_;
+'@ @'
+    int level_;
+    int rf_power_percent_;
+    unsigned int power_;
+'@
+
+Replace-Required "Transceiver/Transceiver.cpp" @'
+    << "; LEVEL: " << s.level_ << "dBm"
+    << "; POWER: " << s.power_ << "mWatts"
+'@ @'
+    << "; LEVEL: " << s.level_ << "dBm"
+    << "; RF POWER SET: " << s.rf_power_percent_ << "%"
+    << "; POWER: " << s.power_ << "mWatts"
+'@
+
+Replace-Required "Transceiver/Transceiver.cpp" @'
+    || lhs.level_ != rhs.level_
+    || lhs.power_ != rhs.power_
+'@ @'
+    || lhs.level_ != rhs.level_
+    || lhs.rf_power_percent_ != rhs.rf_power_percent_
+    || lhs.power_ != rhs.power_
+'@
+
+# Driver base: comando RF opzionale, implementato realmente dal backend Hamlib.
+Replace-Required "Transceiver/TransceiverBase.hpp" @'
+  virtual void do_txvolume (qreal) {}
+  //parameters are MODE,symbolslength,framespersymbol,trfrequency,tonespacing,synchronize,FASTMODE,dbsdr,trperiod //parameters added by w3sz are in bold
+'@ @'
+  virtual void do_txvolume (qreal) {}
+  virtual void do_rf_power_percent (int) {}
+  //parameters are MODE,symbolslength,framespersymbol,trfrequency,tonespacing,synchronize,FASTMODE,dbsdr,trperiod //parameters added by w3sz are in bold
+'@
+
+Replace-Required "Transceiver/TransceiverBase.cpp" @'
+      if (requested_.online ())
+        {
+          bool audio_cmd {false};
+'@ @'
+      if (requested_.online ())
+        {
+          if (s.rf_power_percent () >= 0
+              && requested_.rf_power_percent () != s.rf_power_percent ()) {
+            do_rf_power_percent (s.rf_power_percent ());
+            requested_.rf_power_percent (s.rf_power_percent ());
+            actual_.rf_power_percent (s.rf_power_percent ());
+          }
+
+          bool audio_cmd {false};
+'@
+
+# Hamlib: RIG_LEVEL_RFPOWER e' 0.0..1.0; sul IC-7300 equivale alla percentuale RF Power.
+Replace-Required "Transceiver/HamlibTransceiver.hpp" @'
+  void do_ptt (bool) override;
+  void do_tune (bool) override;
+'@ @'
+  void do_ptt (bool) override;
+  void do_tune (bool) override;
+  void do_rf_power_percent (int) override;
+'@
+
+Replace-Required "Transceiver/HamlibTransceiver.cpp" @'
+HamlibTransceiver::~HamlibTransceiver () = default;
+
+void HamlibTransceiver::load_user_settings ()
+'@ @'
+HamlibTransceiver::~HamlibTransceiver () = default;
+
+void HamlibTransceiver::do_rf_power_percent (int percent)
+{
+  if (!m_->rig_ || m_->is_dummy_) return;
+
+  auto const canSet =
+    rig_get_function_ptr (m_->model_, RIG_FUNCTION_SET_LEVEL)
+    && ((rig_get_caps_int (m_->model_, RIG_CAPS_HAS_SET_LEVEL) & RIG_LEVEL_RFPOWER) == RIG_LEVEL_RFPOWER);
+
+  if (!canSet) {
+    CAT_WARNING ("FT8 Hunter: RF power setting is not supported by the selected Hamlib rig");
+    return;
+  }
+
+  int safe = percent < 0 ? 0 : percent > 100 ? 100 : percent;
+  value_t value {};
+  value.f = static_cast<float> (safe) / 100.0f;
+  auto const rc = rig_set_level (m_->rig_.data (), RIG_VFO_CURR, RIG_LEVEL_RFPOWER, value);
+  if (RIG_OK != rc)
+    CAT_WARNING ("FT8 Hunter: rig_set_level(RIG_LEVEL_RFPOWER) failed rc=" << rc);
+  else
+    CAT_TRACE ("FT8 Hunter: RF power set to " << safe << "%");
+}
+
+void HamlibTransceiver::load_user_settings ()
+'@
+
+# Configuration: porta il comando percentuale fino al backend CAT.
+Replace-Required "Configuration.cpp" @'
+  void transceiver_txvolume (double);
+  void sync_transceiver (bool force_signal);
+'@ @'
+  void transceiver_txvolume (double);
+  void transceiver_rf_power_percent (int);
+  void sync_transceiver (bool force_signal);
+'@
+
+Replace-Required "Configuration.hpp" @'
+public slots:
+  Q_SLOT void transceiver_volume (double = 0);
+  Q_SLOT void transceiver_txvolume (double = 0);
+'@ @'
+public slots:
+  Q_SLOT void transceiver_volume (double = 0);
+  Q_SLOT void transceiver_txvolume (double = 0);
+  Q_SLOT void transceiver_rf_power_percent (int percent);
+'@
+
+Replace-Required "Configuration.cpp" @'
+void Configuration::impl::transceiver_volume (double volume)
+'@ @'
+void Configuration::impl::transceiver_rf_power_percent (int percent)
+{
+  cached_rig_state_.online (true);
+  cached_rig_state_.rf_power_percent (percent);
+  Q_EMIT set_transceiver (cached_rig_state_, ++transceiver_command_number_);
+}
+
+void Configuration::impl::transceiver_volume (double volume)
+'@
+
+Replace-Required "Configuration.cpp" @'
+void Configuration::transceiver_volume (qreal volume)
+{
+'@ @'
+void Configuration::transceiver_rf_power_percent (int percent)
+{
+  LOG_TRACE (percent << ' ' << m_->cached_rig_state_);
+  m_->transceiver_rf_power_percent (percent);
+}
+
+void Configuration::transceiver_volume (qreal volume)
+{
+'@
+
+Write-Host "Applied FT8 Hunter $HunterVersion DXFun HF hunter + 150s acquire + auto-QSO + RF power ramp."
