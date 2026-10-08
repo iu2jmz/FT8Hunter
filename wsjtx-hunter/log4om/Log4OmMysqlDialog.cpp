@@ -21,6 +21,7 @@ Log4OmMysqlDialog::Log4OmMysqlDialog (QWidget * parent)
   , username_ {new QLineEdit {this}}
   , password_ {new QLineEdit {this}}
   , verifyTlsCertificate_ {new QCheckBox {tr ("Verifica certificato TLS del server"), this}}
+  , autoRefresh_ {new QCheckBox {tr ("Aggiorna automaticamente il log ogni 60 secondi"), this}}
   , station_ {new QLineEdit {this}}
 {
   setWindowTitle (tr ("FT8 Hunter - Log4OM MySQL"));
@@ -37,6 +38,7 @@ Log4OmMysqlDialog::Log4OmMysqlDialog (QWidget * parent)
   form->addRow (tr ("Utente:"), username_);
   form->addRow (tr ("Password:"), password_);
   form->addRow (tr ("TLS:"), verifyTlsCertificate_);
+  form->addRow (tr ("Aggiornamento:"), autoRefresh_);
   form->addRow (tr ("Station callsign:"), station_);
 
   auto * note = new QLabel {
@@ -76,6 +78,7 @@ void Log4OmMysqlDialog::load ()
   username_->setText (s.username);
   password_->setText (s.password);
   verifyTlsCertificate_->setChecked (s.verifyTlsCertificate);
+  autoRefresh_->setChecked (s.autoRefresh);
   station_->setText (s.stationCallsign);
 }
 
@@ -89,6 +92,7 @@ void Log4OmMysqlDialog::save ()
   s.username = username_->text ().trimmed ();
   s.password = password_->text ();
   s.verifyTlsCertificate = verifyTlsCertificate_->isChecked ();
+  s.autoRefresh = autoRefresh_->isChecked ();
   s.stationCallsign = station_->text ().trimmed ().toUpper ();
   Log4OmMysql::saveSettings (s);
 }
@@ -103,6 +107,7 @@ void Log4OmMysqlDialog::test ()
   s.username = username_->text ().trimmed ();
   s.password = password_->text ();
   s.verifyTlsCertificate = verifyTlsCertificate_->isChecked ();
+  s.autoRefresh = autoRefresh_->isChecked ();
   s.stationCallsign = station_->text ().trimmed ().toUpper ();
 
   auto const r = Log4OmMysql::testConnection (s);

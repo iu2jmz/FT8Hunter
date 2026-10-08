@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory=$true)][string]$SourceDir,
-    [string]$HunterVersion = "1.0.4"
+    [string]$HunterVersion = "1.0.5"
 )
 
 $ErrorActionPreference = "Stop"
@@ -46,6 +46,7 @@ Replace-Required "widgets/mainwindow.cpp" @'
 #include "Network/eqsl.h"
 '@ @'
 #include "Network/eqsl.h"
+#include "FT8Hunter/Log4OmMysql.hpp"
 #include "FT8Hunter/Log4OmMysqlDialog.hpp"
 '@
 
@@ -66,6 +67,18 @@ Replace-Required "widgets/mainwindow.cpp" @'
           m_logBook.rescan ();
         }
     });
+
+  // FT8 Hunter: aggiorna automaticamente Worked Before da Log4OM.
+  auto * log4omRefreshTimer = new QTimer {this};
+  log4omRefreshTimer->setInterval (60 * 1000);
+  connect (log4omRefreshTimer, &QTimer::timeout, [this] {
+      auto const mysql = Log4OmMysql::loadSettings ();
+      if (mysql.enabled && mysql.autoRefresh)
+        {
+          m_logBook.rescan ();
+        }
+    });
+  log4omRefreshTimer->start ();
 
   setUnifiedTitleAndToolBarOnMac (true);
 '@
@@ -150,3 +163,112 @@ Replace-Required "widgets/mainwindow.cpp" @'
 '@
 
 Write-Host "Applied FT8 Hunter $HunterVersion branding + read-only Log4OM MySQL integration."
+
+
+# FT8 Hunter 1.0.5: filtro country/DXCC gia' lavorati.
+Replace-Required "widgets/mainwindow.ui" @'
+    <addaction name="actionHideB4"/>
+    <addaction name="actionHideToday"/>
+'@ @'
+    <addaction name="actionHideB4"/>
+    <addaction name="actionHideWorkedCountry"/>
+    <addaction name="actionHideToday"/>
+'@
+
+Replace-Required "widgets/mainwindow.ui" @'
+  <action name="actionHideB4">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Hide stations worked before on band</string>
+   </property>
+  </action>
+  <action name="actionHideToday">
+'@ @'
+  <action name="actionHideB4">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Hide stations worked before on band</string>
+   </property>
+  </action>
+  <action name="actionHideWorkedCountry">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Escludi country/DXCC gia lavorati (tutte le bande)</string>
+   </property>
+  </action>
+  <action name="actionHideToday">
+'@
+
+Replace-Required "widgets/mainwindow.cpp" @'
+  m_settings->setValue ("HideB4", ui->actionHideB4->isChecked() );
+  m_settings->setValue ("HideToday", ui->actionHideToday->isChecked() );
+'@ @'
+  m_settings->setValue ("HideB4", ui->actionHideB4->isChecked() );
+  m_settings->setValue ("HideWorkedCountry", ui->actionHideWorkedCountry->isChecked() );
+  m_settings->setValue ("HideToday", ui->actionHideToday->isChecked() );
+'@
+
+Replace-Required "widgets/mainwindow.cpp" @'
+  ui->actionHideB4->setChecked(m_settings->value("HideB4", false).toBool());
+  ui->actionHideToday->setChecked(m_settings->value("HideToday", false).toBool());
+'@ @'
+  ui->actionHideB4->setChecked(m_settings->value("HideB4", false).toBool());
+  ui->actionHideWorkedCountry->setChecked(m_settings->value("HideWorkedCountry", false).toBool());
+  ui->actionHideToday->setChecked(m_settings->value("HideToday", false).toBool());
+'@
+
+Replace-Required "widgets/mainwindow.cpp" 'ui->actionHideB4->isChecked() or ui->actionHideEU->isChecked()' 'ui->actionHideB4->isChecked() or ui->actionHideWorkedCountry->isChecked() or ui->actionHideEU->isChecked()'
+
+Replace-Required "widgets/mainwindow.cpp" @'
+            if (callB4onBand && ui->actionHideB4->isChecked() && !ui->cbBypass->isChecked()) filtered = true;
+          }
+          // search for continents
+'@ @'
+            if (callB4onBand && ui->actionHideB4->isChecked() && !ui->cbBypass->isChecked()) filtered = true;
+          }
+          // FT8 Hunter: escludi DXCC gia' lavorati su qualsiasi banda o modo.
+          if (ui->actionHideWorkedCountry->isChecked()) {
+            bool callB4Any;
+            bool countryB4Any;
+            bool gridB4Any;
+            bool continentB4Any;
+            bool CQZoneB4Any;
+            bool ITUZoneB4Any;
+            auto const& looked_up = m_logBook.countries ()->lookup (deCall);
+            m_logBook.match (deCall, QString {}, deGrid, looked_up, callB4Any, countryB4Any, gridB4Any,
+              continentB4Any, CQZoneB4Any, ITUZoneB4Any);
+            if (!looked_up.entity_name.isEmpty () && countryB4Any && !ui->cbBypass->isChecked()) filtered = true;
+          }
+          // search for continents
+'@
+
+Replace-Required "widgets/mainwindow.cpp" @'
+                      if (callB4onBand && ui->actionHideB4->isChecked() && !ui->cbBypass->isChecked()) filtered = true;
+                    }
+                    // search for continents
+'@ @'
+                      if (callB4onBand && ui->actionHideB4->isChecked() && !ui->cbBypass->isChecked()) filtered = true;
+                    }
+                    // FT8 Hunter: escludi DXCC gia' lavorati su qualsiasi banda o modo.
+                    if (ui->actionHideWorkedCountry->isChecked()) {
+                      bool callB4Any;
+                      bool countryB4Any;
+                      bool gridB4Any;
+                      bool continentB4Any;
+                      bool CQZoneB4Any;
+                      bool ITUZoneB4Any;
+                      auto const& looked_up = m_logBook.countries ()->lookup (deCall);
+                      m_logBook.match (deCall, QString {}, deGrid, looked_up, callB4Any, countryB4Any, gridB4Any,
+                        continentB4Any, CQZoneB4Any, ITUZoneB4Any);
+                      if (!looked_up.entity_name.isEmpty () && countryB4Any && !ui->cbBypass->isChecked()) filtered = true;
+                    }
+                    // search for continents
+'@
+
+Write-Host "Applied FT8 Hunter $HunterVersion auto-refresh + worked-country filter."

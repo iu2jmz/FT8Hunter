@@ -37,3 +37,10 @@ disattivare TLS. Se la verifica e' attivata, il certificato deve essere
 considerato attendibile dal sistema.
 
 Build marker: v1.0.4 TLS Qt5 fix.
+
+
+## v1.0.5 - Refresh automatico e filtro country
+
+- refresh automatico del Worked Before da Log4OM MySQL ogni 60 secondi, disattivabile dalla configurazione
+- nuovo filtro selezionabile: **Escludi country/DXCC gia lavorati (tutte le bande)**
+- il filtro considera il DXCC gia lavorato su qualsiasi banda e modo e rispetta il bypass BP

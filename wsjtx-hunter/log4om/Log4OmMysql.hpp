@@ -12,6 +12,7 @@ struct Log4OmMysqlSettings
   QString username;
   QString password;
   bool verifyTlsCertificate {false};
+  bool autoRefresh {true};
   QString stationCallsign;
 };
 

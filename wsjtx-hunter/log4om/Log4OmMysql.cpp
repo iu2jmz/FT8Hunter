@@ -79,6 +79,7 @@ Log4OmMysqlSettings Log4OmMysql::loadSettings ()
   out.username = s.value (QStringLiteral("username")).toString ();
   out.password = s.value (QStringLiteral("password")).toString ();
   out.verifyTlsCertificate = s.value (QStringLiteral("verifyTlsCertificate"), false).toBool ();
+  out.autoRefresh = s.value (QStringLiteral("autoRefresh"), true).toBool ();
   out.stationCallsign = s.value (QStringLiteral("stationCallsign")).toString ().trimmed ().toUpper ();
   s.endGroup ();
   return out;
@@ -95,6 +96,7 @@ void Log4OmMysql::saveSettings (Log4OmMysqlSettings const& settings)
   s.setValue (QStringLiteral("username"), settings.username.trimmed ());
   s.setValue (QStringLiteral("password"), settings.password);
   s.setValue (QStringLiteral("verifyTlsCertificate"), settings.verifyTlsCertificate);
+  s.setValue (QStringLiteral("autoRefresh"), settings.autoRefresh);
   s.setValue (QStringLiteral("stationCallsign"), settings.stationCallsign.trimmed ().toUpper ());
   s.endGroup ();
   s.sync ();
