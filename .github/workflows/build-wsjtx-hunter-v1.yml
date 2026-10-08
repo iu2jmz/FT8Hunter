@@ -12,7 +12,7 @@ permissions:
   contents: read
 
 env:
-  HUNTER_VERSION: "1.0.3"
+  HUNTER_VERSION: "1.0.4"
   WSJTX_UPSTREAM_SHA: "967c85a6119110788b0df3782cf796485b2cee14"
   HAMLIB_BRANCH: "4.7.0"
 
@@ -187,25 +187,25 @@ jobs:
           $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
           if (-not (Test-Path $iscc)) { throw "ISCC.exe non trovato" }
           & $iscc "/DStageDir=$env:GITHUB_WORKSPACE\stage-main" "/DOmniRigSetup=$env:GITHUB_WORKSPACE\vendor\OmniRigSetup.exe" "wsjtx-hunter\installer\FT8Hunter.iss"
-          $setup = "$env:GITHUB_WORKSPACE\installer-output-wsjtx\FT8Hunter_Setup_v1.0.3.exe"
-          if (-not (Test-Path $setup)) { throw "FT8Hunter_Setup_v1.0.3.exe non generato" }
+          $setup = "$env:GITHUB_WORKSPACE\installer-output-wsjtx\FT8Hunter_Setup_v1.0.4.exe"
+          if (-not (Test-Path $setup)) { throw "FT8Hunter_Setup_v1.0.4.exe non generato" }
           Get-Item $setup | Format-List Name,Length,LastWriteTime
 
       - name: Package corresponding source
         run: |
-          tar -czf FT8Hunter_v1.0.3_source.tar.gz wsjtx-src wsjtx-hunter
-          ls -lh FT8Hunter_v1.0.3_source.tar.gz
+          tar -czf FT8Hunter_v1.0.4_source.tar.gz wsjtx-src wsjtx-hunter
+          ls -lh FT8Hunter_v1.0.4_source.tar.gz
 
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
-          name: FT8Hunter_Setup_v1.0.3
-          path: installer-output-wsjtx/FT8Hunter_Setup_v1.0.3.exe
+          name: FT8Hunter_Setup_v1.0.4
+          path: installer-output-wsjtx/FT8Hunter_Setup_v1.0.4.exe
           if-no-files-found: error
 
       - name: Upload corresponding source
         uses: actions/upload-artifact@v4
         with:
-          name: FT8Hunter_v1.0.3_source
-          path: FT8Hunter_v1.0.3_source.tar.gz
+          name: FT8Hunter_v1.0.4_source
+          path: FT8Hunter_v1.0.4_source.tar.gz
           if-no-files-found: error

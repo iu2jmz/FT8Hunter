@@ -25,3 +25,13 @@ FT8 Hunter puo' usare direttamente il database MySQL/MariaDB di Log4OM 2 su un a
 - driver QMYSQL e runtime MariaDB inclusi nell'installer Windows
 
 La configurazione si trova nel menu **Tools > FT8 Hunter > Log4OM MySQL...**.
+
+
+## v1.0.4 - TLS MariaDB/Qt5
+
+Correzione della connessione Log4OM su MariaDB Connector/C 3.4+ con Qt 5.
+Quando la verifica del certificato TLS e' disattivata, FT8 Hunter imposta
+`MARIADB_TLS_DISABLE_PEER_VERIFICATION=1` prima di creare il driver QMYSQL.
+Questo consente l'uso di certificati locali/self-signed sulla LAN senza
+disattivare TLS. Se la verifica e' attivata, il certificato deve essere
+considerato attendibile dal sistema.

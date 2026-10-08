@@ -12,14 +12,28 @@
 
 namespace
 {
-  QString options (Log4OmMysqlSettings const& settings)
+  QString options ()
   {
+    // Qt 5 QMYSQL does not support MYSQL_OPT_SSL_VERIFY_SERVER_CERT.
+    // MariaDB Connector/C 3.4+ verifies server certificates by default.
+    // The peer-verification policy is therefore applied through the
+    // connector-supported environment variable before QMYSQL is created.
     return QStringLiteral(
       "MYSQL_OPT_CONNECT_TIMEOUT=3;"
       "MYSQL_OPT_RECONNECT=1;"
-      "MYSQL_SET_CHARSET_NAME=utf8mb4;"
-      "MYSQL_OPT_SSL_VERIFY_SERVER_CERT=%1")
-      .arg (settings.verifyTlsCertificate ? 1 : 0);
+      "MYSQL_SET_CHARSET_NAME=utf8mb4");
+  }
+
+  void applyTlsPolicy (Log4OmMysqlSettings const& settings)
+  {
+    if (settings.verifyTlsCertificate)
+      {
+        qunsetenv ("MARIADB_TLS_DISABLE_PEER_VERIFICATION");
+      }
+    else
+      {
+        qputenv ("MARIADB_TLS_DISABLE_PEER_VERIFICATION", "1");
+      }
   }
 
   void configure (QSqlDatabase& db, Log4OmMysqlSettings const& settings)
@@ -29,7 +43,7 @@ namespace
     db.setDatabaseName (settings.database.trimmed ());
     db.setUserName (settings.username.trimmed ());
     db.setPassword (settings.password);
-    db.setConnectOptions (options (settings));
+    db.setConnectOptions (options ());
   }
 
   QString filterSql (Log4OmMysqlSettings const& settings)
@@ -90,6 +104,7 @@ Log4OmMysqlTestResult Log4OmMysql::testConnection (Log4OmMysqlSettings const& se
 {
   Log4OmMysqlTestResult result;
   auto const name = connectionName ();
+  applyTlsPolicy (settings);
 
   {
     auto db = QSqlDatabase::addDatabase (QStringLiteral("QMYSQL"), name);
@@ -146,6 +161,7 @@ QVector<Log4OmQsoRow> Log4OmMysql::loadWorkedQsos (Log4OmMysqlSettings const& se
   if (error) error->clear ();
 
   auto const name = connectionName ();
+  applyTlsPolicy (settings);
   {
     auto db = QSqlDatabase::addDatabase (QStringLiteral("QMYSQL"), name);
     if (!db.isValid ())
