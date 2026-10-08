@@ -35,3 +35,5 @@ Quando la verifica del certificato TLS e' disattivata, FT8 Hunter imposta
 Questo consente l'uso di certificati locali/self-signed sulla LAN senza
 disattivare TLS. Se la verifica e' attivata, il certificato deve essere
 considerato attendibile dal sistema.
+
+Build marker: v1.0.4 TLS Qt5 fix.
