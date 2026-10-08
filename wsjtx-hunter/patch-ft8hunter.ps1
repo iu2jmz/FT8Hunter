@@ -634,3 +634,63 @@ void Configuration::transceiver_volume (qreal volume)
 '@
 
 Write-Host "Applied FT8 Hunter $HunterVersion DXFun HF hunter + 150s acquire + auto-QSO + RF power ramp."
+
+
+# FT8 Hunter 1.0.8: RF Power anche quando l'IC-7300 e' configurato tramite OmniRig.
+# OmniRig accetta SAFEARRAY(BYTE); ActiveQt mappa QByteArray su SAFEARRAY(BYTE).
+Replace-Required "Transceiver/OmniRigTransceiver.hpp" @'
+  void do_mode (MODE) override;
+  void do_ptt (bool on) override;
+'@ @'
+  void do_mode (MODE) override;
+  void do_ptt (bool on) override;
+  void do_rf_power_percent (int) override;
+'@
+
+Replace-Required "Transceiver/OmniRigTransceiver.cpp" @'
+#include <QEventLoop>
+'@ @'
+#include <QEventLoop>
+#include <QByteArray>
+#include <QVariant>
+'@
+
+Replace-Required "Transceiver/OmniRigTransceiver.cpp" @'
+void OmniRigTransceiver::do_ptt (bool on)
+'@ @'
+void OmniRigTransceiver::do_rf_power_percent (int percent)
+{
+  if (!rig_ || rig_->isNull ()) return;
+
+  // Questa sequenza CI-V e' specifica dell'IC-7300 (indirizzo 94h).
+  // 14 0A imposta RF POWER su scala 0000..0255.
+  if (!rig_type_.contains (QStringLiteral ("IC-7300"), Qt::CaseInsensitive)) {
+    CAT_WARNING ("FT8 Hunter: RF power via OmniRig supported here only for IC-7300");
+    return;
+  }
+
+  int safe = percent < 0 ? 0 : percent > 100 ? 100 : percent;
+  int level = (safe * 255 + 50) / 100;
+  auto bcd = [] (int n) -> char {
+      return static_cast<char> (((n / 10) << 4) | (n % 10));
+    };
+
+  QByteArray command;
+  command.append (static_cast<char> (0xFE));
+  command.append (static_cast<char> (0xFE));
+  command.append (static_cast<char> (0x94));
+  command.append (static_cast<char> (0xE0));
+  command.append (static_cast<char> (0x14));
+  command.append (static_cast<char> (0x0A));
+  command.append (bcd (level / 100));
+  command.append (bcd (level % 100));
+  command.append (static_cast<char> (0xFD));
+
+  rig_->SendCustomCommand (QVariant {command}, 0, QVariant {QString {}});
+  CAT_TRACE ("FT8 Hunter: OmniRig IC-7300 RF power set to " << safe << "%");
+}
+
+void OmniRigTransceiver::do_ptt (bool on)
+'@
+
+Write-Host "Applied FT8 Hunter $HunterVersion IC-7300 RF power control through OmniRig."
