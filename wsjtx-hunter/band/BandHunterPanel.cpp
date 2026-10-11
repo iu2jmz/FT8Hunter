@@ -299,6 +299,15 @@ void BandHunterPanel::tick ()
 
   if (externalPaused_)
     {
+      // Una sorgente esterna (es. PSK Reporter) puo' trasferire il target
+      // al Monitor Hunter. In quel caso non tornare alla banda del ciclo
+      // finche' il QSO/target Monitor non e' realmente terminato.
+      if (monitorBusyGetter_ && monitorBusyGetter_ ())
+        {
+          updateLabels (tr ("QSO/HUNTER IN CORSO - rientro Band Hunter in attesa"));
+          return;
+        }
+
       externalPaused_ = false;
       tuneCurrentBand (false);
       return;
