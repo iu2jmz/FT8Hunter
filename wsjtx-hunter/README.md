@@ -128,3 +128,33 @@ La protezione dei QSO automatici e' ora condivisa da **Monitor Hunter** e **DXFu
 - la logica DX OCCUPATO e il watchdog di progresso valgono sia per Monitor Hunter sia per DXFun
 - DXFun non puo' eseguire una nuova AUTO QSY mentre Monitor Hunter mantiene un target, anche durante lo stato DX OCCUPATO
 - il pannello DXFun viene liberato soltanto dopo la reale accettazione del **Log QSO**, coerentemente con l'auto-conferma a 4 secondi
+
+
+## v1.0.13 - QSY spot esatta e Band Hunter
+
+### DXFun: frequenza cluster e split
+
+- gli spot che dichiarano esplicitamente **FT8** o **FT4** nel commento vengono considerati QRG digitali esplicite
+- per questi spot la frequenza indicata dal cluster diventa direttamente il **dial RX**
+- la stessa QRG diventa anche la nuova **base TX**: setRig() riallinea m_freqNominal e m_freqTxNominal, quindi setXIT() ricostruisce lo split sulla nuova frequenza
+- non rimane quindi alcun riferimento TX/split alla precedente frequenza FT8 standard
+- per gli spot senza modo esplicito resta il comportamento precedente: riconoscimento FT8/FT4 per vicinanza alle frequenze configurate e uso del relativo offset audio
+- il pannello distingue **QSY SPOT** da **QSY STANDARD**
+- questa logica consente di seguire DXpedition e stazioni che lavorano su una propria frequenza FT8/FT4
+
+### Band Hunter automatico
+
+Nuova finestra **Tools > FT8 Hunter > Band Hunter...**.
+
+- funzione attivabile separatamente
+- ciclo: **80, 60, 40, 30, 20, 17, 15, 12, 10 m**, comprese le bande WARC
+- ogni banda puo' essere inclusa o esclusa singolarmente
+- permanenza normale: **15 minuti effettivi di ascolto per banda**
+- tra le **23:00 e le 06:00 locali**, sulle bande **20/17/15/12/10 m** la permanenza scende a **4 minuti**
+- 80/60/40/30 m restano a 15 minuti anche nella fascia notturna
+- dopo ogni cambio banda ci sono **5 secondi di stabilizzazione** prima di riattivare il Monitor Hunter
+- il tempo di permanenza non avanza mentre Monitor Hunter sta chiamando, gestendo **DX OCCUPATO** o completando un QSO
+- **DXFun AUTO QSY ha sempre priorita'**: Band Hunter sospende il Monitor Hunter, conserva il tempo residuo della banda e, terminata la caccia cluster, ritorna sulla banda del ciclo
+- Band Hunter usa il normale **Monitor Hunter** come motore CQ, quindi conserva filtri Worked/DXCC, TX slot libero dal waterfall, 8 chiamate, pausa DX occupato e watchdog 4/4 della v1.0.12
+- chiudere la finestra Band Hunter disattiva il ciclo automatico
+- le frequenze di banda sono prese dalla lista FT8 configurata in WSJT-X; una banda non disponibile viene saltata
