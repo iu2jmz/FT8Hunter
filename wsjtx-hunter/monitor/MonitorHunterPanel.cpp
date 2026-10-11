@@ -555,6 +555,15 @@ bool MonitorHunterPanel::setAutomaticEnabled (bool enabled)
   return autoCheck_->isChecked () == enabled;
 }
 
+bool MonitorHunterPanel::enqueueExternalCandidate (MonitorHunterCandidate const& candidate)
+{
+  if (!filterActive_) return false;
+  if (!autoCheck_->isChecked () && !setAutomaticEnabled (true)) return false;
+  if (isBlacklisted (candidate.callsign, QDateTime::currentDateTimeUtc ())) return false;
+  enqueueCandidate (candidate);
+  return true;
+}
+
 int MonitorHunterPanel::nextTxPowerPercent (QString const& txMessage)
 {
   if (!qsoActive ()) return -1;
