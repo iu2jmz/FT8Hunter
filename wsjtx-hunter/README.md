@@ -158,3 +158,43 @@ Nuova finestra **Tools > FT8 Hunter > Band Hunter...**.
 - Band Hunter usa il normale **Monitor Hunter** come motore CQ, quindi conserva filtri Worked/DXCC, TX slot libero dal waterfall, 8 chiamate, pausa DX occupato e watchdog 4/4 della v1.0.12
 - chiudere la finestra Band Hunter disattiva il ciclo automatico
 - le frequenze di banda sono prese dalla lista FT8 configurata in WSJT-X; una banda non disponibile viene saltata
+
+
+## v1.0.13 Beta - funzioni sperimentali
+
+Questa Beta parte dalla 1.0.13 stabile e resta su un ramo separato.
+
+### Nuovo branding IU2JMZ
+
+- logo unico **IU2JMZ / FT8 Hunter** per eseguibile, taskbar/finestra, installer, collegamenti Windows e splash
+- la Beta usa identita' e directory separate dalla versione stabile
+
+### Disinstallazione Windows
+
+- voce dedicata **FT8 Hunter 1.0.13 Beta** in App installate / Programmi e funzionalita'
+- disinstallazione standard di programma e collegamenti
+- durante la rimozione viene chiesto se eliminare anche configurazioni e dati personali
+- la scelta predefinita conserva i dati personali
+
+### Monitor Hunter - blacklist 5 ore
+
+- una stazione che arriva a **8/8 chiamate senza alcuna risposta** entra in blacklist per **5 ore**
+- la blacklist non si applica al watchdog 4/4 dopo che il DX aveva gia' risposto
+- i CQ dei nominativi in blacklist vengono ignorati fino alla scadenza
+- finestra dedicata con nominativo, banda, ora di inserimento e tempo residuo
+- pulsanti **Riabilita** e **Riabilita tutte**
+- la blacklist viene salvata nelle impostazioni e sopravvive al riavvio della Beta
+
+### PSK Reporter sperimentale
+
+Nuova finestra **Tools > FT8 Hunter > PSK Reporter Beta...**.
+
+- sorgente MQTT near-real-time separata dal DXFun Cluster
+- ascolto dei report FT8/FT4 sulle bande 80/60/40/30/20/17/15/12/10 m
+- classificazione NEW DXCC / NEW su banda tramite lo stesso Worked Before Log4OM
+- deduplicazione e scarto dei report vecchi
+- la frequenza PSK Reporter viene trattata come frequenza RF del segnale e convertita in dial + offset audio
+- un report PSK e' soltanto un candidato: dopo la QSY la radio ascolta localmente
+- **nessuna trasmissione parte sulla sola base del report PSK**
+- il QSO viene affidato al Monitor Hunter soltanto se il decoder locale riceve realmente un CQ del target
+- DXFun mantiene priorita' rispetto a PSK Reporter; Band Hunter resta sospeso durante la verifica del candidato
