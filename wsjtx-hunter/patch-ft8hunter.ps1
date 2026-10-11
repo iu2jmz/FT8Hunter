@@ -894,3 +894,127 @@ Replace-Required "widgets/mainwindow.h" @'
 '@
 
 Write-Host "Applied FT8 Hunter $HunterVersion Monitor Hunter Hold-TX state."
+
+
+# FT8 Hunter 1.0.11: usa lo spettro reale del Grafico Ampio per trovare uno slot TX quieto.
+Replace-Required "widgets/widegraph.h" @'
+  void   setTxFreq(int n);
+  void   setMode(QString mode);
+'@ @'
+  void   setTxFreq(int n);
+  int    bestQuietTxFrequency(int avoidHz, QString const& mode);
+  void   setMode(QString mode);
+'@
+
+Replace-Required "widgets/widegraph.h" @'
+  qint32 m_jz=MAX_SCREENSIZE;
+  qint32 m_n;
+  qint32 m_timestamp;
+'@ @'
+  qint32 m_jz=MAX_SCREENSIZE;
+  qint32 m_n;
+  qint32 m_timestamp;
+  double m_hunterBinHz {0.0};
+  int    m_hunterSpectrumFrames {0};
+  float  m_hunterSpectrum[MAX_SCREENSIZE] {};
+'@
+
+Replace-Required "widgets/widegraph.cpp" @'
+    m_tr0=tr;
+    ui->widePlot->draw(m_swide,true,false);
+'@ @'
+    m_tr0=tr;
+
+    // Media esponenziale dello spettro recente. Le righe speciali 1e30/2e30
+    // usate dal waterfall per marcare i periodi non devono entrare nell'analisi.
+    if (jz > 0 && m_swide[0] < 1.0e20f)
+      {
+        m_hunterBinHz = nbpp * df3;
+        for (int j = 0; j < jz; ++j)
+          {
+            auto const v = m_swide[j];
+            if (v >= 0.0f && v < 1.0e20f)
+              {
+                if (m_hunterSpectrumFrames == 0)
+                  m_hunterSpectrum[j] = v;
+                else
+                  m_hunterSpectrum[j] = 0.85f * m_hunterSpectrum[j] + 0.15f * v;
+              }
+          }
+        if (m_hunterSpectrumFrames < 1000) ++m_hunterSpectrumFrames;
+      }
+
+    ui->widePlot->draw(m_swide,true,false);
+'@
+
+Replace-Required "widgets/widegraph.cpp" @'
+void WideGraph::setMode(QString mode)                              //setMode
+'@ @'
+int WideGraph::bestQuietTxFrequency (int avoidHz, QString const& mode)
+{
+  // Aspetta alcuni aggiornamenti reali del waterfall prima di prendere una decisione.
+  if (m_hunterSpectrumFrames < 4 || m_hunterBinHz <= 0.0 || m_jz < 4) return -1;
+
+  // FT8 e FT4 occupano poche decine di Hz. Valutiamo una finestra piu' larga
+  // (segnale + guardia) per non piazzare la TX in una fessura troppo stretta.
+  int const signalWidth = mode == QStringLiteral ("FT4") ? 70 : 50;
+  int const guard = 35;
+  int const avoidGuard = 100;
+
+  double const graphStart = ui->widePlot->startFreq ();
+  double const graphEnd = graphStart + m_jz * m_hunterBinHz;
+
+  int const low = qMax (250, static_cast<int> (ceil (graphStart + guard)));
+  int const high = qMin (2800, static_cast<int> (floor (graphEnd - signalWidth - guard)));
+  if (high <= low) return -1;
+
+  double bestScore = 1.0e300;
+  int bestTx = -1;
+
+  for (int tx = low; tx <= high; tx += 5)
+    {
+      int const protectedLow = tx - guard;
+      int const protectedHigh = tx + signalWidth + guard;
+
+      // Non trasmettere sopra o immediatamente accanto al DX che stiamo ascoltando.
+      if (avoidHz > 0
+          && protectedLow < avoidHz + avoidGuard
+          && protectedHigh > avoidHz - avoidGuard)
+        continue;
+
+      int i0 = static_cast<int> (floor ((protectedLow - graphStart) / m_hunterBinHz));
+      int i1 = static_cast<int> (ceil ((protectedHigh - graphStart) / m_hunterBinHz));
+      i0 = qMax (0, i0);
+      i1 = qMin (m_jz - 1, i1);
+      if (i1 <= i0) continue;
+
+      double sum = 0.0;
+      double peak = 0.0;
+      int count = 0;
+      for (int i = i0; i <= i1; ++i)
+        {
+          auto const v = static_cast<double> (m_hunterSpectrum[i]);
+          if (v <= 0.0 || v >= 1.0e20) continue;
+          sum += v;
+          peak = qMax (peak, v);
+          ++count;
+        }
+      if (count < 3) continue;
+
+      // Premia una zona con bassa energia media ma penalizza anche un picco stretto.
+      auto const mean = sum / count;
+      auto const score = mean + 0.35 * peak;
+      if (score < bestScore)
+        {
+          bestScore = score;
+          bestTx = tx;
+        }
+    }
+
+  return bestTx;
+}
+
+void WideGraph::setMode(QString mode)                              //setMode
+'@
+
+Write-Host "Applied FT8 Hunter $HunterVersion waterfall-based automatic TX slot selection."
