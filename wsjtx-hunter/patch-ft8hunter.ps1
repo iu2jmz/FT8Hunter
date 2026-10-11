@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory=$true)][string]$SourceDir,
-    [string]$HunterVersion = "1.0.11"
+    [string]$HunterVersion = "1.0.12"
 )
 
 $ErrorActionPreference = "Stop"
@@ -199,7 +199,7 @@ Replace-Required "widgets/mainwindow.cpp" @'
       dxFunPanel->openAndConnect ();
     });
 
-  // FT8 Hunter 1.0.11 - Monitor Hunter automatico: finestra separata.
+  // FT8 Hunter 1.0.12 - Monitor Hunter automatico: finestra separata.
   // La RX segue il DX; la TX viene bloccata su uno slot indipendente per tutto il QSO.
   auto startMonitorHunterQso =
     [this] (MonitorHunterCandidate const& request, bool autoTxSlot) -> int {
@@ -380,7 +380,7 @@ Replace-Required "widgets/mainwindow.cpp" @'
 Write-Host "Applied FT8 Hunter $HunterVersion branding + read-only Log4OM MySQL integration."
 
 
-# FT8 Hunter 1.0.11: filtro country/DXCC gia' lavorati.
+# FT8 Hunter 1.0.12: filtro country/DXCC gia' lavorati.
 Replace-Required "widgets/mainwindow.ui" @'
     <addaction name="actionHideB4"/>
     <addaction name="actionHideToday"/>
@@ -489,7 +489,7 @@ Replace-Required "widgets/mainwindow.cpp" @'
 Write-Host "Applied FT8 Hunter $HunterVersion auto-refresh + worked-country filter + DXFun cluster."
 
 
-# FT8 Hunter 1.0.11: puntatore al pannello cluster usato dai hook decoder/TX.
+# FT8 Hunter 1.0.12: puntatore al pannello cluster usato dai hook decoder/TX.
 Replace-Required "widgets/mainwindow.cpp" @'
 QString earlyDecodes = "";  //ft8md
 '@ @'
@@ -498,7 +498,7 @@ DxFunClusterPanel * g_dxFunPanel = nullptr;
 MonitorHunterPanel * g_monitorHunterPanel = nullptr;
 '@
 
-# FT8 Hunter 1.0.11: quando la stazione spottata viene realmente decodificata,
+# FT8 Hunter 1.0.12: quando la stazione spottata viene realmente decodificata,
 # passa dalla finestra di ascolto di 150 s al QSO automatico WSJT-X.
 Replace-Required "widgets/mainwindow.cpp" @'
         QString text = decodedtext.string().replace("<","").replace(">","");   // for Wait & Reply/Call and filtering
@@ -534,7 +534,7 @@ Replace-Required "widgets/mainwindow.cpp" @'
         }
 '@
 
-# FT8 Hunter 1.0.11: rampa RF del 7300 ad ogni trasmissione Hunter.
+# FT8 Hunter 1.0.12: rampa RF del 7300 ad ogni trasmissione Hunter.
 Replace-Required "widgets/mainwindow.cpp" @'
     transmit (snr);
 '@ @'
@@ -738,7 +738,7 @@ void Configuration::transceiver_volume (qreal volume)
 Write-Host "Applied FT8 Hunter $HunterVersion DXFun HF hunter + 150s acquire + auto-QSO + RF power ramp."
 
 
-# FT8 Hunter 1.0.11: RF Power anche quando l'IC-7300 e' configurato tramite OmniRig.
+# FT8 Hunter 1.0.12: RF Power anche quando l'IC-7300 e' configurato tramite OmniRig.
 # OmniRig accetta SAFEARRAY(BYTE); ActiveQt mappa QByteArray su SAFEARRAY(BYTE).
 Replace-Required "Transceiver/OmniRigTransceiver.hpp" @'
   void do_mode (MODE) override;
@@ -798,7 +798,7 @@ void OmniRigTransceiver::do_ptt (bool on)
 Write-Host "Applied FT8 Hunter $HunterVersion IC-7300 RF power control through OmniRig."
 
 
-# FT8 Hunter 1.0.11: la finestra Log QSO resta visibile per 4 secondi,
+# FT8 Hunter 1.0.12: la finestra Log QSO resta visibile per 4 secondi,
 # poi viene confermata automaticamente come se l'operatore premesse OK.
 # Se l'utente la conferma o la annulla prima, il timer non fa nulla.
 Replace-Required "widgets/logqso.cpp" @'
@@ -821,7 +821,7 @@ Replace-Required "widgets/logqso.cpp" @'
 Write-Host "Applied FT8 Hunter $HunterVersion Log QSO 4-second auto-confirm."
 
 
-# FT8 Hunter 1.0.11: quando il Log QSO emette acceptQSO, il Monitor Hunter puo' passare al CQ successivo.
+# FT8 Hunter 1.0.12: quando il Log QSO emette acceptQSO, il Monitor Hunter puo' passare al CQ successivo.
 Replace-Required "widgets/mainwindow.cpp" @'
   connect (m_logDlg.data (), &LogQSO::acceptQSO, this, &MainWindow::acceptQSO);
 '@ @'
@@ -835,7 +835,7 @@ Replace-Required "widgets/mainwindow.cpp" @'
 Write-Host "Applied FT8 Hunter $HunterVersion Monitor Hunter log-completion hook."
 
 
-# FT8 Hunter 1.0.11: osserva i decode dopo i filtri.
+# FT8 Hunter 1.0.12: osserva i decode dopo i filtri.
 # Un CQ entra nella coda solo se e' realmente visibile e il suo DXCC non risulta lavorato sulla banda.
 Replace-Required "widgets/mainwindow.cpp" @'
         // show distance and bearing
@@ -881,7 +881,7 @@ Replace-Required "widgets/mainwindow.cpp" @'
 Write-Host "Applied FT8 Hunter $HunterVersion Monitor Hunter decode queue."
 
 
-# FT8 Hunter 1.0.11: stato temporaneo Hold Tx Freq usato dal Monitor Hunter.
+# FT8 Hunter 1.0.12: stato temporaneo Hold Tx Freq usato dal Monitor Hunter.
 Replace-Required "widgets/mainwindow.h" @'
   QScopedPointer<WideGraph> m_wideGraph;
   QScopedPointer<EchoGraph> m_echoGraph;
@@ -896,7 +896,7 @@ Replace-Required "widgets/mainwindow.h" @'
 Write-Host "Applied FT8 Hunter $HunterVersion Monitor Hunter Hold-TX state."
 
 
-# FT8 Hunter 1.0.11: usa lo spettro reale del Grafico Ampio per trovare uno slot TX quieto.
+# FT8 Hunter 1.0.12: usa lo spettro reale del Grafico Ampio per trovare uno slot TX quieto.
 Replace-Required "widgets/widegraph.h" @'
   void   setTxFreq(int n);
   void   setMode(QString mode);
@@ -1018,3 +1018,224 @@ void WideGraph::setMode(QString mode)                              //setMode
 '@
 
 Write-Host "Applied FT8 Hunter $HunterVersion waterfall-based automatic TX slot selection."
+
+
+# FT8 Hunter 1.0.12: watchdog QSO condiviso tra Monitor Hunter e DXFun.
+Copy-Item "wsjtx-hunter/common/HunterQsoWatchdog.hpp" (Join-Path $hunterDir "HunterQsoWatchdog.hpp") -Force
+
+# Il sorgente di controllo usa ../common; nel tree WSJT-X i file Hunter sono appiattiti nella stessa cartella.
+Replace-Required "FT8Hunter/DxFunClusterPanel.hpp" @'
+#include "../common/HunterQsoWatchdog.hpp"
+'@ @'
+#include "HunterQsoWatchdog.hpp"
+'@
+
+# DXFun non deve prendere la radio mentre Monitor Hunter e' in Calling/Busy/QSO.
+Replace-Required "widgets/mainwindow.cpp" @'
+      if (m_transmitting || m_tune || m_auto) return false;
+      if (request.mode != QStringLiteral ("FT8") && request.mode != QStringLiteral ("FT4")) return false;
+'@ @'
+      if (m_transmitting || m_tune || m_auto) return false;
+      if (g_monitorHunterPanel && g_monitorHunterPanel->huntActive ()) return false;
+      if (request.mode != QStringLiteral ("FT8") && request.mode != QStringLiteral ("FT4")) return false;
+'@
+
+# Monitor Hunter: pausa quando il DX lavora un'altra stazione e ripresa sul nuovo CQ,
+# mantenendo tentativo e potenza raggiunti.
+Replace-Required "widgets/mainwindow.cpp" @'
+  auto abortMonitorHunterQso = [this] {
+      if (m_auto) auto_tx_mode (false);
+      if (m_transmitting) ui->stopTxButton->click ();
+      clearDX ();
+      monitor (true);
+    };
+
+  auto releaseMonitorHunterTx = [this] {
+'@ @'
+  auto pauseMonitorHunterQso = [this] {
+      if (m_transmitting)
+        ui->stopTxButton->click ();
+      else if (m_auto)
+        auto_tx_mode (false);
+      monitor (true);
+    };
+
+  auto resumeMonitorHunterQso = [this] (QString const& rawText, int audioOffset) -> bool {
+      if (m_tune) return false;
+      DecodedText hunterDecode {rawText};
+      tx_watchdog (false);
+      m_bDoubleClicked = true;
+      processMessage (hunterDecode);
+      ui->RxFreqSpinBox->setValue (audioOffset);
+      auto_tx_mode (true);
+      return true;
+    };
+
+  auto abortMonitorHunterQso = [this] {
+      if (m_auto) auto_tx_mode (false);
+      if (m_transmitting) ui->stopTxButton->click ();
+      clearDX ();
+      monitor (true);
+    };
+
+  auto releaseMonitorHunterTx = [this] {
+'@
+
+Replace-Required "widgets/mainwindow.cpp" @'
+  auto * monitorHunterPanel = new MonitorHunterPanel {
+    m_config.my_callsign (), startMonitorHunterQso, abortMonitorHunterQso,
+    releaseMonitorHunterTx, m_settings, this};
+'@ @'
+  auto * monitorHunterPanel = new MonitorHunterPanel {
+    m_config.my_callsign (), startMonitorHunterQso,
+    pauseMonitorHunterQso, resumeMonitorHunterQso,
+    abortMonitorHunterQso, releaseMonitorHunterTx, m_settings, this};
+'@
+
+# DXFun: classifica CQ, risposta a noi e risposta a terzi.
+Replace-Required "widgets/mainwindow.cpp" @'
+          auto const hunterAction =
+            g_dxFunPanel->observeDecode(hunterCall, text,
+                                        decodedtext.frequencyOffset(),
+                                        m_config.my_callsign());
+
+          if (hunterAction == DxFunClusterPanel::DecodeAction::StartQso) {
+            tx_watchdog(false);
+            m_bDoubleClicked = true;
+            processMessage(decodedtext0);
+            ui->dxCallEntry->setText(hunterCall);
+            ui->RxFreqSpinBox->setValue(decodedtext.frequencyOffset());
+            auto_tx_mode(true);
+          } else if (hunterAction == DxFunClusterPanel::DecodeAction::CompleteQso) {
+            // Lascia terminare l'elaborazione del decode e poi registra localmente.
+            QTimer::singleShot (500, this, [this] {
+              if (m_auto) cease_auto_Tx_after_QSO ();
+              if (!m_tune) {
+                on_logQSOButton_clicked ();
+              }
+              if (g_dxFunPanel) g_dxFunPanel->qsoLogged ();
+            });
+          }
+'@ @'
+          auto const hunterFirstCall = decodedtext.call ().trimmed ().toUpper ();
+          auto const hunterCqCall = decodedtext.CQersCall ().trimmed ().toUpper ();
+          auto const hunterAction =
+            g_dxFunPanel->observeDecode(hunterFirstCall, hunterCall, hunterCqCall, text,
+                                        decodedtext.frequencyOffset(),
+                                        m_config.my_callsign());
+
+          if (hunterAction == DxFunClusterPanel::DecodeAction::StartQso
+              || hunterAction == DxFunClusterPanel::DecodeAction::ResumeQso) {
+            tx_watchdog(false);
+            m_bDoubleClicked = true;
+            processMessage(decodedtext0);
+            ui->dxCallEntry->setText(hunterCall);
+            ui->RxFreqSpinBox->setValue(decodedtext.frequencyOffset());
+            auto_tx_mode(true);
+          } else if (hunterAction == DxFunClusterPanel::DecodeAction::PauseBusy) {
+            if (m_transmitting)
+              ui->stopTxButton->click ();
+            else if (m_auto)
+              auto_tx_mode (false);
+            monitor (true);
+          } else if (hunterAction == DxFunClusterPanel::DecodeAction::CompleteQso) {
+            // Ferma la sequenza; il pannello DXFun verra' liberato soltanto
+            // quando LogQSO avra' realmente emesso acceptQSO.
+            QTimer::singleShot (500, this, [this] {
+              if (m_auto) cease_auto_Tx_after_QSO ();
+              if (!m_tune) on_logQSOButton_clicked ();
+            });
+          }
+'@
+
+# Monitor Hunter riceve anche il primo nominativo del messaggio per mostrare chi sta lavorando il DX.
+Replace-Required "widgets/mainwindow.cpp" @'
+          g_monitorHunterPanel->observeDecode (
+            decodedtext0.string (), text, mhCqCall, mhDeCall, mhGrid,
+            decodedtext.frequencyOffset (), decodedtext.snr (),
+            m_mode, m_currentBand, mhCountry, mhEligibleCq);
+'@ @'
+          g_monitorHunterPanel->observeDecode (
+            decodedtext0.string (), text, decodedtext.call ().trimmed ().toUpper (),
+            mhCqCall, mhDeCall, mhGrid,
+            decodedtext.frequencyOffset (), decodedtext.snr (),
+            m_mode, m_currentBand, mhCountry, mhEligibleCq);
+'@
+
+# Il log effettivamente accettato libera entrambi i motori Hunter.
+Replace-Required "widgets/mainwindow.cpp" @'
+  connect (m_logDlg.data (), &LogQSO::acceptQSO, this,
+           [] (QDateTime const&, QString const& call) {
+      if (g_monitorHunterPanel) g_monitorHunterPanel->qsoLogged (call);
+    });
+'@ @'
+  connect (m_logDlg.data (), &LogQSO::acceptQSO, this,
+           [] (QDateTime const&, QString const& call) {
+      if (g_monitorHunterPanel) g_monitorHunterPanel->qsoLogged (call);
+      if (g_dxFunPanel) g_dxFunPanel->qsoLogged (call);
+    });
+'@
+
+# Watchdog TX comune: 8 chiamate 50..85%, poi dopo la risposta max 4 TX dello stesso step senza progresso.
+Replace-Required "widgets/mainwindow.cpp" @'
+    bool hunterTransmitAllowed = true;
+
+    // Monitor Hunter ha priorita': 8 TX massime senza risposta, 50..85% a passi di 5%.
+    if (g_monitorHunterPanel && g_monitorHunterPanel->qsoActive ()) {
+      auto const monitorPower = g_monitorHunterPanel->nextTxPowerPercent ();
+      if (monitorPower == MonitorHunterPanel::StopTransmission) {
+        hunterTransmitAllowed = false;
+        if (m_auto) auto_tx_mode (false);
+        clearDX ();
+        monitor (true);
+        g_monitorHunterPanel->callingExhausted ();
+      } else if (monitorPower >= 0) {
+        m_config.transceiver_rf_power_percent (monitorPower);
+      }
+    } else if (g_dxFunPanel && g_dxFunPanel->qsoActive ()) {
+      auto const hunterPower = g_dxFunPanel->nextTxPowerPercent ();
+      if (hunterPower >= 0)
+        m_config.transceiver_rf_power_percent (hunterPower);
+    }
+
+    if (hunterTransmitAllowed)
+      transmit (snr);
+'@ @'
+    bool hunterTransmitAllowed = true;
+    auto hunterTxStep = m_currentMessage.trimmed ();
+    if (hunterTxStep.isEmpty ()) {
+      if (m_ntx == 1) hunterTxStep = ui->tx1->text ();
+      if (m_ntx == 2) hunterTxStep = ui->tx2->text ();
+      if (m_ntx == 3) hunterTxStep = ui->tx3->text ();
+      if (m_ntx == 4) hunterTxStep = ui->tx4->text ();
+      if (m_ntx == 5) hunterTxStep = ui->tx5->currentText ();
+      if (m_ntx == 6) hunterTxStep = ui->tx6->text ();
+    }
+
+    if (g_monitorHunterPanel && g_monitorHunterPanel->qsoActive ()) {
+      auto const monitorPower = g_monitorHunterPanel->nextTxPowerPercent (hunterTxStep);
+      if (monitorPower == MonitorHunterPanel::StopTransmission) {
+        hunterTransmitAllowed = false;
+        if (m_auto) auto_tx_mode (false);
+        monitor (true);
+        g_monitorHunterPanel->transmissionExhausted ();
+      } else if (monitorPower >= 0) {
+        m_config.transceiver_rf_power_percent (monitorPower);
+      }
+    } else if (g_dxFunPanel && g_dxFunPanel->qsoActive ()) {
+      auto const hunterPower = g_dxFunPanel->nextTxPowerPercent (hunterTxStep);
+      if (hunterPower == -2) {
+        hunterTransmitAllowed = false;
+        if (m_auto) auto_tx_mode (false);
+        monitor (true);
+        g_dxFunPanel->transmissionExhausted ();
+      } else if (hunterPower >= 0) {
+        m_config.transceiver_rf_power_percent (hunterPower);
+      }
+    }
+
+    if (hunterTransmitAllowed)
+      transmit (snr);
+'@
+
+Write-Host "Applied FT8 Hunter $HunterVersion shared QSO watchdog: busy-pause, 8-call limit and 4-TX no-progress limit."

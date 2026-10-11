@@ -21,6 +21,8 @@ namespace
 
 MonitorHunterPanel::MonitorHunterPanel (QString const& myCall,
                                         Starter starter,
+                                        PauseHandler pauseHandler,
+                                        ResumeHandler resumeHandler,
                                         AbortHandler abortHandler,
                                         ReleaseHandler releaseHandler,
                                         QSettings * settings,
@@ -28,6 +30,8 @@ MonitorHunterPanel::MonitorHunterPanel (QString const& myCall,
   : QDialog {parent, Qt::Window | Qt::WindowTitleHint | Qt::WindowSystemMenuHint | Qt::WindowCloseButtonHint}
   , myCall_ {myCall.trimmed ().toUpper ()}
   , starter_ {std::move (starter)}
+  , pauseHandler_ {std::move (pauseHandler)}
+  , resumeHandler_ {std::move (resumeHandler)}
   , abortHandler_ {std::move (abortHandler)}
   , releaseHandler_ {std::move (releaseHandler)}
   , settings_ {settings}
@@ -43,6 +47,7 @@ MonitorHunterPanel::MonitorHunterPanel (QString const& myCall,
   , stopButton_ {new QPushButton {tr ("Ferma QSO Hunter"), this}}
   , clearButton_ {new QPushButton {tr ("Svuota coda"), this}}
   , retryTimer_ {new QTimer {this}}
+  , busyTimer_ {new QTimer {this}}
 {
   setWindowTitle (tr ("FT8 Hunter - Monitor Hunter"));
   setModal (false);
@@ -109,7 +114,9 @@ MonitorHunterPanel::MonitorHunterPanel (QString const& myCall,
   setLayout (root);
 
   retryTimer_->setSingleShot (true);
+  busyTimer_->setSingleShot (true);
   connect (retryTimer_, &QTimer::timeout, this, [this] { attemptStart (); });
+  connect (busyTimer_, &QTimer::timeout, this, [this] { busyTimeout (); });
 
   connect (autoCheck_, &QCheckBox::toggled, this, [this] (bool checked) {
       if (checked)
@@ -120,6 +127,7 @@ MonitorHunterPanel::MonitorHunterPanel (QString const& myCall,
       else
         {
           retryTimer_->stop ();
+          busyTimer_->stop ();
           queue_.clear ();
           if (state_ != HuntState::Idle)
             resetActive (tr ("automazione disattivata"), true, false);
@@ -182,6 +190,13 @@ void MonitorHunterPanel::showCallingState (QString const& detail)
     QStringLiteral ("QLabel { background:#ffd54f; color:black; border:1px solid #b7950b; padding:8px; }"));
 }
 
+void MonitorHunterPanel::showBusyState (QString const& detail)
+{
+  stateLabel_->setText (tr ("DX OCCUPATO") + (detail.isEmpty () ? QString {} : QStringLiteral ("  -  ") + detail));
+  stateLabel_->setStyleSheet (
+    QStringLiteral ("QLabel { background:#ff9800; color:black; border:1px solid #b26a00; padding:8px; }"));
+}
+
 void MonitorHunterPanel::showQsoState (QString const& detail)
 {
   stateLabel_->setText (tr ("QSO") + (detail.isEmpty () ? QString {} : QStringLiteral ("  -  ") + detail));
@@ -212,10 +227,27 @@ void MonitorHunterPanel::updateActiveLabels ()
           .arg (lockedTxWasAutomatic_ ? tr (" (AUTO WATERFALL)") : tr (" (MANUALE)"))
       : tr ("TX SLOT: --"));
 
-  progressLabel_->setText (
-    answered_
-      ? tr ("HUNTER: risposta | RF %1%%").arg (lastPowerPercent_)
-      : tr ("HUNTER: %1/8 | RF %2%%").arg (txCycles_).arg (lastPowerPercent_));
+  if (state_ == HuntState::Busy)
+    {
+      progressLabel_->setText (
+        tr ("HUNTER: pausa | %1/8 | RF %2%%")
+          .arg (watchdog_.callingTransmissions ())
+          .arg (lastPowerPercent_));
+    }
+  else if (watchdog_.answered ())
+    {
+      progressLabel_->setText (
+        tr ("HUNTER: attendo progresso %1/4 | RF %2%%")
+          .arg (watchdog_.noProgressTransmissions ())
+          .arg (lastPowerPercent_));
+    }
+  else
+    {
+      progressLabel_->setText (
+        tr ("HUNTER: %1/8 | RF %2%%")
+          .arg (watchdog_.callingTransmissions ())
+          .arg (lastPowerPercent_));
+    }
 }
 
 void MonitorHunterPanel::openWindow ()
@@ -278,7 +310,6 @@ void MonitorHunterPanel::enqueueCandidate (MonitorHunterCandidate const& candida
   auto const now = QDateTime::currentDateTimeUtc ();
   if (inCooldown (call, now)) return;
 
-  // Il primo CQ valido mantiene la priorita'. Se viene ridichiarato, aggiorna il timestamp.
   for (int i = 0; i < queue_.size (); ++i)
     {
       if (queue_.at (i).callsign.trimmed ().toUpper () == call)
@@ -324,8 +355,8 @@ void MonitorHunterPanel::attemptStart ()
 
   active_ = candidate;
   state_ = HuntState::Calling;
-  answered_ = false;
-  txCycles_ = 0;
+  watchdog_.reset (active_.callsign, myCall_);
+  pendingStopReason_ = HunterQsoWatchdog::StopReason::None;
   lastPowerPercent_ = 50;
   lockedTxOffset_ = txOffset;
   lockedTxWasAutomatic_ = automaticTx;
@@ -338,8 +369,33 @@ void MonitorHunterPanel::attemptStart ()
   updateSummary ();
 }
 
+void MonitorHunterPanel::enterBusy (QString const& otherCall)
+{
+  if (state_ != HuntState::Calling || watchdog_.answered ()) return;
+
+  state_ = HuntState::Busy;
+  if (pauseHandler_) pauseHandler_ ();
+  busyTimer_->start (HunterQsoWatchdog::BusyTimeoutSeconds * 1000);
+
+  auto const detail = otherCall.trimmed ().isEmpty () || otherCall == QStringLiteral ("CQ")
+    ? tr ("%1 sta lavorando un'altra stazione - attendo nuovo CQ").arg (active_.callsign)
+    : tr ("%1 sta lavorando %2 - attendo nuovo CQ").arg (active_.callsign).arg (otherCall);
+
+  showBusyState (detail);
+  appendEvent (active_, tr ("DX OCCUPATO - pausa %1/8").arg (watchdog_.callingTransmissions ()));
+  updateActiveLabels ();
+}
+
+void MonitorHunterPanel::busyTimeout ()
+{
+  if (state_ != HuntState::Busy) return;
+  appendEvent (active_, tr ("DX OCCUPATO > 90 s - ABBANDONO"));
+  resetActive (tr ("DX occupato oltre 90 s - cerco il prossimo CQ"), true, true);
+}
+
 void MonitorHunterPanel::observeDecode (QString const& rawText,
                                         QString const& cleanText,
+                                        QString const& firstCall,
                                         QString const& cqCall,
                                         QString const& deCall,
                                         QString const& grid,
@@ -351,30 +407,61 @@ void MonitorHunterPanel::observeDecode (QString const& rawText,
                                         bool eligibleCq)
 {
   auto const now = QDateTime::currentDateTimeUtc ();
+  auto const event = watchdog_.observe (deCall, cqCall, cleanText);
 
-  // Durante un QSO Hunter continua a leggere tutti i decode per riconoscere la risposta.
-  if (state_ != HuntState::Idle)
+  if (state_ == HuntState::Calling)
     {
-      auto const target = active_.callsign.trimmed ().toUpper ();
-      auto text = cleanText;
-      text.remove ('<');
-      text.remove ('>');
-      auto const upper = text.toUpper ();
-      auto const de = deCall.trimmed ().toUpper ();
-
-      if (!myCall_.isEmpty ()
-          && (de == target || upper.contains (target))
-          && upper.contains (myCall_))
+      if (event == HunterQsoWatchdog::DecodeEvent::TargetToMe)
         {
-          if (!answered_)
+          busyTimer_->stop ();
+          state_ = HuntState::Qso;
+          lastPowerPercent_ = watchdog_.powerPercent ();
+          showQsoState (tr ("%1 ha risposto - Auto Seq completa il QSO").arg (active_.callsign));
+          appendEvent (active_, tr ("RISPOSTA - RF BLOCCATA %1%%").arg (lastPowerPercent_));
+          updateActiveLabels ();
+        }
+      else if (event == HunterQsoWatchdog::DecodeEvent::TargetToOther)
+        {
+          enterBusy (firstCall);
+        }
+    }
+  else if (state_ == HuntState::Busy)
+    {
+      bool const directToMe = event == HunterQsoWatchdog::DecodeEvent::TargetToMe;
+      bool const returnedCq = event == HunterQsoWatchdog::DecodeEvent::TargetCq;
+      if (directToMe || returnedCq)
+        {
+          if (resumeHandler_ && resumeHandler_ (rawText, audioOffset))
             {
-              answered_ = true;
-              state_ = HuntState::Qso;
-              showQsoState (tr ("%1 ha risposto - Auto Seq completa il QSO").arg (target));
+              busyTimer_->stop ();
+              active_.audioOffset = audioOffset;
+              if (directToMe)
+                {
+                  state_ = HuntState::Qso;
+                  showQsoState (tr ("%1 e' tornato da noi - riprendo Auto Seq").arg (active_.callsign));
+                  appendEvent (active_, tr ("DX TORNA A NOI - QSO"));
+                }
+              else
+                {
+                  state_ = HuntState::Calling;
+                  showCallingState (
+                    tr ("%1 torna in CQ - riprendo da %2/8")
+                      .arg (active_.callsign)
+                      .arg (watchdog_.callingTransmissions ()));
+                  appendEvent (
+                    active_,
+                    tr ("NUOVO CQ - RIPRENDO DA %1/8").arg (watchdog_.callingTransmissions ()));
+                }
               updateActiveLabels ();
-              appendEvent (active_, tr ("RISPOSTA - RF BLOCCATA %1%%").arg (lastPowerPercent_));
             }
         }
+    }
+  else if (state_ == HuntState::Qso
+           && event == HunterQsoWatchdog::DecodeEvent::TargetToMe)
+    {
+      showQsoState (tr ("%1 - progresso ricevuto, watchdog azzerato").arg (active_.callsign));
+      appendEvent (active_, tr ("PROGRESSO RX - CONTATORE 0/4"));
+      updateActiveLabels ();
     }
 
   if (!eligibleCq || cqCall.trimmed ().isEmpty ()) return;
@@ -399,31 +486,48 @@ bool MonitorHunterPanel::qsoActive () const
   return state_ == HuntState::Calling || state_ == HuntState::Qso;
 }
 
-int MonitorHunterPanel::nextTxPowerPercent ()
+bool MonitorHunterPanel::huntActive () const
+{
+  return state_ != HuntState::Idle;
+}
+
+int MonitorHunterPanel::nextTxPowerPercent (QString const& txMessage)
 {
   if (!qsoActive ()) return -1;
 
-  if (!answered_ && txCycles_ >= 8)
-    return StopTransmission;
-
-  if (txCycles_ == 0)
-    lastPowerPercent_ = 50;
-  else if (!answered_)
-    lastPowerPercent_ = 50 + 5 * txCycles_;
-
-  ++txCycles_;
-
-  if (answered_)
+  auto const result = watchdog_.beforeTransmit (txMessage);
+  if (!result.allow)
     {
-      showQsoState (tr ("%1 - Auto Seq").arg (active_.callsign));
+      pendingStopReason_ = result.stopReason;
+      return StopTransmission;
+    }
+
+  pendingStopReason_ = HunterQsoWatchdog::StopReason::None;
+  lastPowerPercent_ = result.powerPercent;
+
+  if (watchdog_.answered ())
+    {
+      showQsoState (
+        tr ("%1 - attendo progresso %2/4")
+          .arg (active_.callsign)
+          .arg (result.noProgressTransmission));
+      appendEvent (
+        active_,
+        tr ("TX QSO %1/4 | RF %2%% | TX %3 Hz")
+          .arg (result.noProgressTransmission)
+          .arg (lastPowerPercent_)
+          .arg (lockedTxOffset_));
     }
   else
     {
-      showCallingState (tr ("%1 | %2/8").arg (active_.callsign).arg (txCycles_));
+      showCallingState (
+        tr ("%1 | %2/8")
+          .arg (active_.callsign)
+          .arg (result.callingTransmission));
       appendEvent (
         active_,
         tr ("TX %1/8 | RF %2%% | TX %3 Hz")
-          .arg (txCycles_)
+          .arg (result.callingTransmission)
           .arg (lastPowerPercent_)
           .arg (lockedTxOffset_));
     }
@@ -432,47 +536,43 @@ int MonitorHunterPanel::nextTxPowerPercent ()
   return lastPowerPercent_;
 }
 
-void MonitorHunterPanel::callingExhausted ()
+void MonitorHunterPanel::transmissionExhausted ()
 {
-  if (!qsoActive () || answered_) return;
+  if (state_ == HuntState::Idle) return;
 
-  ++failedCalls_;
-  appendEvent (active_, tr ("8/8 - NESSUNA RISPOSTA"));
-  cooldownUntil_.insert (
-    active_.callsign.trimmed ().toUpper (),
-    QDateTime::currentDateTimeUtc ().addSecs (FailedCooldownSeconds));
+  QString status;
+  QString event;
+  if (pendingStopReason_ == HunterQsoWatchdog::StopReason::NoProgressLimit)
+    {
+      event = tr ("QSO ABBANDONATO - 4 TX SENZA PROGRESSO");
+      status = tr ("4 ritrasmissioni senza progresso - cerco il prossimo CQ");
+    }
+  else
+    {
+      ++failedCalls_;
+      event = tr ("8/8 - NESSUNA RISPOSTA");
+      status = tr ("8 chiamate senza risposta - cerco il prossimo CQ");
+    }
 
-  if (releaseHandler_) releaseHandler_ ();
-
-  active_ = MonitorHunterCandidate {};
-  state_ = HuntState::Idle;
-  answered_ = false;
-  txCycles_ = 0;
-  lastPowerPercent_ = 50;
-  lockedTxOffset_ = -1;
-  lockedTxWasAutomatic_ = false;
-  stopButton_->setEnabled (false);
-  autoTxSlotCheck_->setEnabled (filterActive_);
-  updateActiveLabels ();
-  showListeningState (tr ("8 chiamate senza risposta - cerco il prossimo CQ"));
-  updateSummary ();
-  retryTimer_->start (500);
+  appendEvent (active_, event);
+  resetActive (status, true, true);
 }
 
 void MonitorHunterPanel::qsoLogged (QString const& call)
 {
-  if (!qsoActive ()) return;
+  if (!huntActive ()) return;
   if (call.trimmed ().toUpper () != active_.callsign.trimmed ().toUpper ()) return;
 
   ++completedQsos_;
   appendEvent (active_, tr ("QSO LOGGATO"));
 
+  busyTimer_->stop ();
   if (releaseHandler_) releaseHandler_ ();
 
   active_ = MonitorHunterCandidate {};
   state_ = HuntState::Idle;
-  answered_ = false;
-  txCycles_ = 0;
+  watchdog_.clear ();
+  pendingStopReason_ = HunterQsoWatchdog::StopReason::None;
   lastPowerPercent_ = 50;
   lockedTxOffset_ = -1;
   lockedTxWasAutomatic_ = false;
@@ -487,6 +587,7 @@ void MonitorHunterPanel::qsoLogged (QString const& call)
 void MonitorHunterPanel::resetActive (QString const& status, bool abortRadio, bool cooldown)
 {
   retryTimer_->stop ();
+  busyTimer_->stop ();
   auto const hadActive = state_ != HuntState::Idle;
 
   if (hadActive && cooldown && !active_.callsign.isEmpty ())
@@ -499,8 +600,8 @@ void MonitorHunterPanel::resetActive (QString const& status, bool abortRadio, bo
 
   active_ = MonitorHunterCandidate {};
   state_ = HuntState::Idle;
-  answered_ = false;
-  txCycles_ = 0;
+  watchdog_.clear ();
+  pendingStopReason_ = HunterQsoWatchdog::StopReason::None;
   lastPowerPercent_ = 50;
   lockedTxOffset_ = -1;
   lockedTxWasAutomatic_ = false;
@@ -551,7 +652,6 @@ void MonitorHunterPanel::updateSummary ()
 
 void MonitorHunterPanel::closeEvent (QCloseEvent * event)
 {
-  // Chiudere la finestra disattiva l'automazione: nessuna TX automatica resta nascosta.
   if (autoCheck_->isChecked ())
     autoCheck_->setChecked (false);
 

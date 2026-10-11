@@ -6,6 +6,7 @@
 #include <QString>
 #include <QVariant>
 #include <functional>
+#include "../common/HunterQsoWatchdog.hpp"
 
 class QCheckBox;
 class QLabel;
@@ -49,6 +50,8 @@ public:
   {
     None,
     StartQso,
+    PauseBusy,
+    ResumeQso,
     CompleteQso
   };
 
@@ -65,20 +68,25 @@ public:
 
   void openAndConnect ();
 
-  DecodeAction observeDecode (QString const& deCall,
+  DecodeAction observeDecode (QString const& firstCall,
+                              QString const& deCall,
+                              QString const& cqCall,
                               QString const& cleanText,
                               int audioOffset,
                               QString const& myCall);
   bool qsoActive () const;
   bool huntActive () const;
-  int nextTxPowerPercent ();
-  void qsoLogged ();
+  int nextTxPowerPercent (QString const& txMessage);
+  void transmissionExhausted ();
+  void qsoLogged (QString const& call);
 
 private:
   enum class HuntState
   {
     Idle,
     Listening,
+    Calling,
+    Busy,
     Qso
   };
 
@@ -101,6 +109,7 @@ private:
   void tuneSelected ();
   void beginHunt (Candidate const& candidate);
   void listenTimeout ();
+  void busyTimeout ();
   void qsoTimeout ();
   void resetHunt (QString const& status, bool abortRadio);
   void updateCounters ();
@@ -129,14 +138,15 @@ private:
   QPushButton * clearButton_;
   QTimer * settleTimer_;
   QTimer * listenTimer_;
+  QTimer * busyTimer_;
   QTimer * qsoTimer_;
 
   Candidate pending_;
   bool pendingValid_ {false};
   Candidate active_;
   HuntState huntState_ {HuntState::Idle};
-  bool answered_ {false};
-  int txCycles_ {0};
+  HunterQsoWatchdog watchdog_;
+  HunterQsoWatchdog::StopReason pendingStopReason_ {HunterQsoWatchdog::StopReason::None};
   int lastPowerPercent_ {50};
   QDateTime lastQsyUtc_;
   QHash<QString, QDateTime> seen_;

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "HunterQsoWatchdog.hpp"
+
 #include <QDateTime>
 #include <QDialog>
 #include <QHash>
@@ -34,13 +36,16 @@ public:
   static constexpr int StartUnavailable = -1;
   static constexpr int StopTransmission = -2;
 
-  // Ritorna la frequenza audio TX bloccata; valore negativo = non ancora disponibile.
   using Starter = std::function<int (MonitorHunterCandidate const&, bool autoTxSlot)>;
+  using PauseHandler = std::function<void ()>;
+  using ResumeHandler = std::function<bool (QString const& rawText, int audioOffset)>;
   using AbortHandler = std::function<void ()>;
   using ReleaseHandler = std::function<void ()>;
 
   MonitorHunterPanel (QString const& myCall,
                       Starter starter,
+                      PauseHandler pauseHandler,
+                      ResumeHandler resumeHandler,
                       AbortHandler abortHandler,
                       ReleaseHandler releaseHandler,
                       QSettings * settings,
@@ -51,6 +56,7 @@ public:
 
   void observeDecode (QString const& rawText,
                       QString const& cleanText,
+                      QString const& firstCall,
                       QString const& cqCall,
                       QString const& deCall,
                       QString const& grid,
@@ -62,8 +68,9 @@ public:
                       bool eligibleCq);
 
   bool qsoActive () const;
-  int nextTxPowerPercent ();
-  void callingExhausted ();
+  bool huntActive () const;
+  int nextTxPowerPercent (QString const& txMessage);
+  void transmissionExhausted ();
   void qsoLogged (QString const& call);
 
 protected:
@@ -74,12 +81,15 @@ private:
   {
     Idle,
     Calling,
+    Busy,
     Qso
   };
 
   void enqueueCandidate (MonitorHunterCandidate const& candidate);
   void attemptStart ();
   void pruneQueue ();
+  void enterBusy (QString const& otherCall);
+  void busyTimeout ();
   void resetActive (QString const& status, bool abortRadio, bool cooldown);
   void appendEvent (MonitorHunterCandidate const& candidate, QString const& state);
   void updateSummary ();
@@ -87,11 +97,14 @@ private:
   void showOffState (QString const& detail);
   void showListeningState (QString const& detail);
   void showCallingState (QString const& detail);
+  void showBusyState (QString const& detail);
   void showQsoState (QString const& detail);
   void updateActiveLabels ();
 
   QString myCall_;
   Starter starter_;
+  PauseHandler pauseHandler_;
+  ResumeHandler resumeHandler_;
   AbortHandler abortHandler_;
   ReleaseHandler releaseHandler_;
   QSettings * settings_;
@@ -108,14 +121,15 @@ private:
   QPushButton * stopButton_;
   QPushButton * clearButton_;
   QTimer * retryTimer_;
+  QTimer * busyTimer_;
 
   bool filterActive_ {false};
   HuntState state_ {HuntState::Idle};
   MonitorHunterCandidate active_;
   QList<MonitorHunterCandidate> queue_;
   QHash<QString, QDateTime> cooldownUntil_;
-  bool answered_ {false};
-  int txCycles_ {0};
+  HunterQsoWatchdog watchdog_;
+  HunterQsoWatchdog::StopReason pendingStopReason_ {HunterQsoWatchdog::StopReason::None};
   int lastPowerPercent_ {50};
   int lockedTxOffset_ {-1};
   bool lockedTxWasAutomatic_ {false};

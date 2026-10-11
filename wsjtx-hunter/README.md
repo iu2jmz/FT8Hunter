@@ -109,3 +109,22 @@ Nuova finestra separata **Tools > FT8 Hunter > Monitor Hunter...**.
 - lo stato Hold Tx Freq e la frequenza TX presenti prima dell'Hunter vengono ripristinati al termine del QSO
 - se la selezione automatica e' disattivata, viene bloccata per il QSO la frequenza TX scelta manualmente dall'operatore
 - restano invariati gli 8 tentativi con rampa **50, 55, 60, 65, 70, 75, 80, 85%**, con congelamento della potenza appena il DX risponde
+
+
+## v1.0.12 - Watchdog comune Hunter
+
+La protezione dei QSO automatici e' ora condivisa da **Monitor Hunter** e **DXFun Cluster**.
+
+- prima risposta: massimo **8 trasmissioni** con RF Power **50, 55, 60, 65, 70, 75, 80, 85%**
+- la stessa rampa vale ora anche per i QSO automatici avviati dal cluster DXFun
+- alla prima risposta valida del DX la potenza viene congelata al livello raggiunto
+- dopo ogni messaggio valido del DX indirizzato a noi viene azzerato il watchdog di progresso
+- dopo la risposta sono consentite al massimo **4 trasmissioni consecutive dello stesso step senza nuovo progresso**
+- prima della quinta trasmissione senza progresso il QSO viene abbandonato, Auto viene fermato e Hunter passa al prossimo candidato
+- se prima della risposta il DX viene decodificato mentre risponde a un'altra stazione, Hunter entra in **DX OCCUPATO - ATTESA** e sospende le trasmissioni
+- il contatore delle chiamate e la potenza raggiunta vengono conservati durante la pausa
+- se il DX torna in CQ entro **90 secondi**, Hunter riprende dal tentativo successivo; se torna direttamente verso di noi, riprende il QSO
+- se il DX non torna disponibile entro 90 secondi, il target viene abbandonato
+- la logica DX OCCUPATO e il watchdog di progresso valgono sia per Monitor Hunter sia per DXFun
+- DXFun non puo' eseguire una nuova AUTO QSY mentre Monitor Hunter mantiene un target, anche durante lo stato DX OCCUPATO
+- il pannello DXFun viene liberato soltanto dopo la reale accettazione del **Log QSO**, coerentemente con l'auto-conferma a 4 secondi

@@ -67,6 +67,7 @@ DxFunClusterPanel::DxFunClusterPanel (QString const& defaultCallsign,
   , clearButton_ {new QPushButton {tr ("Pulisci"), this}}
   , settleTimer_ {new QTimer {this}}
   , listenTimer_ {new QTimer {this}}
+  , busyTimer_ {new QTimer {this}}
   , qsoTimer_ {new QTimer {this}}
 {
   setObjectName (QStringLiteral ("FT8HunterDXFunCluster"));
@@ -140,9 +141,11 @@ DxFunClusterPanel::DxFunClusterPanel (QString const& defaultCallsign,
 
   settleTimer_->setSingleShot (true);
   listenTimer_->setSingleShot (true);
+  busyTimer_->setSingleShot (true);
   qsoTimer_->setSingleShot (true);
   connect (settleTimer_, &QTimer::timeout, this, [this] { attemptAutoQsy (); });
   connect (listenTimer_, &QTimer::timeout, this, [this] { listenTimeout (); });
+  connect (busyTimer_, &QTimer::timeout, this, [this] { busyTimeout (); });
   connect (qsoTimer_, &QTimer::timeout, this, [this] { qsoTimeout (); });
 
   if (settings_)
@@ -407,10 +410,11 @@ void DxFunClusterPanel::beginHunt (Candidate const& candidate)
 {
   active_ = candidate;
   huntState_ = HuntState::Listening;
-  answered_ = false;
-  txCycles_ = 0;
+  watchdog_.reset (active_.request.callsign, defaultCallsign_);
+  pendingStopReason_ = HunterQsoWatchdog::StopReason::None;
   lastPowerPercent_ = 50;
   listenTimer_->start (150000);
+  busyTimer_->stop ();
   qsoTimer_->stop ();
   statusLabel_->setText (
     tr ("ASCOLTO 150 s -> %1 %2 %3 (%4)")
@@ -429,11 +433,20 @@ void DxFunClusterPanel::listenTimeout ()
     false);
 }
 
+void DxFunClusterPanel::busyTimeout ()
+{
+  if (huntState_ != HuntState::Busy) return;
+  resetHunt (
+    tr ("DX OCCUPATO: %1 non e' tornato disponibile entro 90 s - prossimo spot")
+      .arg (active_.request.callsign),
+    true);
+}
+
 void DxFunClusterPanel::qsoTimeout ()
 {
-  if (huntState_ != HuntState::Qso) return;
+  if (huntState_ != HuntState::Calling && huntState_ != HuntState::Qso) return;
   resetHunt (
-    tr ("QSO %1: timeout 3 minuti - ritorno al cluster")
+    tr ("QSO %1: timeout di sicurezza - ritorno al cluster")
       .arg (active_.request.callsign),
     true);
 }
@@ -441,12 +454,13 @@ void DxFunClusterPanel::qsoTimeout ()
 void DxFunClusterPanel::resetHunt (QString const& status, bool abortRadio)
 {
   listenTimer_->stop ();
+  busyTimer_->stop ();
   qsoTimer_->stop ();
   settleTimer_->stop ();
   if (abortRadio && abortHandler_) abortHandler_ ();
   huntState_ = HuntState::Idle;
-  answered_ = false;
-  txCycles_ = 0;
+  watchdog_.clear ();
+  pendingStopReason_ = HunterQsoWatchdog::StopReason::None;
   lastPowerPercent_ = 50;
   active_ = Candidate {};
   pendingValid_ = false;
@@ -454,46 +468,112 @@ void DxFunClusterPanel::resetHunt (QString const& status, bool abortRadio)
 }
 
 DxFunClusterPanel::DecodeAction DxFunClusterPanel::observeDecode (
-  QString const& deCall, QString const& cleanText, int audioOffset, QString const& myCall)
+  QString const& firstCall,
+  QString const& deCall,
+  QString const& cqCall,
+  QString const& cleanText,
+  int audioOffset,
+  QString const& myCall)
 {
-  if (!autoQsyButton_->isChecked () || deCall.trimmed ().isEmpty ()) return DecodeAction::None;
+  if (!autoQsyButton_->isChecked ()) return DecodeAction::None;
   if (huntState_ == HuntState::Idle) return DecodeAction::None;
 
-  auto const call = deCall.trimmed ().toUpper ();
+  auto const event = watchdog_.observe (deCall, cqCall, cleanText);
+  if (event == HunterQsoWatchdog::DecodeEvent::None) return DecodeAction::None;
+
   auto const target = active_.request.callsign.trimmed ().toUpper ();
-  if (call != target) return DecodeAction::None;
 
   if (huntState_ == HuntState::Listening)
     {
-      listenTimer_->stop ();
-      huntState_ = HuntState::Qso;
-      active_.request.offsetHz = audioOffset;
-      answered_ = false;
-      txCycles_ = 0;
-      lastPowerPercent_ = 50;
-      qsoTimer_->start (180000);
-      statusLabel_->setText (
-        tr ("TROVATO %1 - QSO automatico, timeout 3 minuti, potenza iniziale 50%%")
-          .arg (target));
-      return DecodeAction::StartQso;
+      if (event == HunterQsoWatchdog::DecodeEvent::TargetToOther)
+        {
+          listenTimer_->stop ();
+          huntState_ = HuntState::Busy;
+          busyTimer_->start (HunterQsoWatchdog::BusyTimeoutSeconds * 1000);
+          statusLabel_->setText (
+            tr ("DX OCCUPATO - %1 sta lavorando %2; attendo nuovo CQ (max 90 s)")
+              .arg (target)
+              .arg (firstCall));
+          return DecodeAction::None;
+        }
+
+      if (event == HunterQsoWatchdog::DecodeEvent::TargetCq
+          || event == HunterQsoWatchdog::DecodeEvent::TargetToMe)
+        {
+          listenTimer_->stop ();
+          active_.request.offsetHz = audioOffset;
+          huntState_ = watchdog_.answered () ? HuntState::Qso : HuntState::Calling;
+          qsoTimer_->start (600000);
+          statusLabel_->setText (
+            watchdog_.answered ()
+              ? tr ("TROVATO %1 - messaggio diretto; QSO automatico").arg (target)
+              : tr ("CQ %1 trovato - QSO automatico, max 8 chiamate da 50%% a 85%%").arg (target));
+          return DecodeAction::StartQso;
+        }
     }
 
-  if (huntState_ == HuntState::Qso)
+  if (huntState_ == HuntState::Calling)
     {
+      if (event == HunterQsoWatchdog::DecodeEvent::TargetToMe)
+        {
+          huntState_ = HuntState::Qso;
+          lastPowerPercent_ = watchdog_.powerPercent ();
+          qsoTimer_->start (600000);
+          statusLabel_->setText (
+            tr ("%1 ha risposto - RF congelata %2%%; watchdog progresso 0/4")
+              .arg (target)
+              .arg (lastPowerPercent_));
+        }
+      else if (event == HunterQsoWatchdog::DecodeEvent::TargetToOther)
+        {
+          huntState_ = HuntState::Busy;
+          qsoTimer_->stop ();
+          busyTimer_->start (HunterQsoWatchdog::BusyTimeoutSeconds * 1000);
+          statusLabel_->setText (
+            tr ("DX OCCUPATO - %1 sta lavorando %2; Hunter in pausa %3/8")
+              .arg (target)
+              .arg (firstCall)
+              .arg (watchdog_.callingTransmissions ()));
+          return DecodeAction::PauseBusy;
+        }
+    }
+  else if (huntState_ == HuntState::Busy)
+    {
+      if (event == HunterQsoWatchdog::DecodeEvent::TargetCq
+          || event == HunterQsoWatchdog::DecodeEvent::TargetToMe)
+        {
+          busyTimer_->stop ();
+          active_.request.offsetHz = audioOffset;
+          huntState_ = watchdog_.answered () ? HuntState::Qso : HuntState::Calling;
+          qsoTimer_->start (600000);
+          statusLabel_->setText (
+            watchdog_.answered ()
+              ? tr ("%1 torna da noi - riprendo QSO").arg (target)
+              : tr ("%1 torna in CQ - riprendo da %2/8")
+                  .arg (target)
+                  .arg (watchdog_.callingTransmissions ()));
+          return DecodeAction::ResumeQso;
+        }
+    }
+  else if (huntState_ == HuntState::Qso
+           && event == HunterQsoWatchdog::DecodeEvent::TargetToMe)
+    {
+      qsoTimer_->start (600000);
+      statusLabel_->setText (
+        tr ("QSO %1 - progresso RX; watchdog ritrasmissioni azzerato")
+          .arg (target));
+
       auto text = cleanText;
       text.remove ('<');
       text.remove ('>');
       auto const my = myCall.trimmed ().toUpper ();
-      if (!my.isEmpty () && text.contains (my, Qt::CaseInsensitive))
-        answered_ = true;
-
       if (!my.isEmpty ()
           && text.contains (my, Qt::CaseInsensitive)
           && (text.contains (QStringLiteral (" RR73"), Qt::CaseInsensitive)
               || text.contains (QStringLiteral (" 73"), Qt::CaseInsensitive)))
         {
           qsoTimer_->stop ();
-          statusLabel_->setText (tr ("73 ricevuto da %1 - log locale e ritorno al cluster").arg (target));
+          statusLabel_->setText (tr ("73 ricevuto da %1 - attendo registrazione Log QSO").arg (target));
           return DecodeAction::CompleteQso;
         }
     }
@@ -503,7 +583,7 @@ DxFunClusterPanel::DecodeAction DxFunClusterPanel::observeDecode (
 
 bool DxFunClusterPanel::qsoActive () const
 {
-  return huntState_ == HuntState::Qso;
+  return huntState_ == HuntState::Calling || huntState_ == HuntState::Qso;
 }
 
 bool DxFunClusterPanel::huntActive () const
@@ -511,27 +591,65 @@ bool DxFunClusterPanel::huntActive () const
   return huntState_ != HuntState::Idle;
 }
 
-int DxFunClusterPanel::nextTxPowerPercent ()
+int DxFunClusterPanel::nextTxPowerPercent (QString const& txMessage)
 {
-  if (huntState_ != HuntState::Qso) return -1;
+  if (!qsoActive ()) return -1;
 
-  if (txCycles_ == 0)
-    lastPowerPercent_ = 50;
-  else if (!answered_)
-    lastPowerPercent_ = qMin (100, 50 + 9 * txCycles_);
+  auto const result = watchdog_.beforeTransmit (txMessage);
+  if (!result.allow)
+    {
+      pendingStopReason_ = result.stopReason;
+      return -2;
+    }
 
-  ++txCycles_;
-  statusLabel_->setText (
-    tr ("QSO %1 - TX ciclo %2 - RF Power %3%%")
-      .arg (active_.request.callsign)
-      .arg (txCycles_)
-      .arg (lastPowerPercent_));
+  pendingStopReason_ = HunterQsoWatchdog::StopReason::None;
+  lastPowerPercent_ = result.powerPercent;
+
+  if (watchdog_.answered ())
+    {
+      statusLabel_->setText (
+        tr ("QSO %1 - attendo progresso %2/4 - RF Power %3%%")
+          .arg (active_.request.callsign)
+          .arg (result.noProgressTransmission)
+          .arg (lastPowerPercent_));
+    }
+  else
+    {
+      statusLabel_->setText (
+        tr ("QSO %1 - chiamata %2/8 - RF Power %3%%")
+          .arg (active_.request.callsign)
+          .arg (result.callingTransmission)
+          .arg (lastPowerPercent_));
+    }
+
   return lastPowerPercent_;
 }
 
-void DxFunClusterPanel::qsoLogged ()
+void DxFunClusterPanel::transmissionExhausted ()
 {
-  if (huntState_ != HuntState::Qso) return;
+  if (!qsoActive ()) return;
+
+  if (pendingStopReason_ == HunterQsoWatchdog::StopReason::NoProgressLimit)
+    {
+      resetHunt (
+        tr ("QSO %1 abbandonato: 4 TX consecutive senza progresso")
+          .arg (active_.request.callsign),
+        true);
+    }
+  else
+    {
+      resetHunt (
+        tr ("%1: 8 chiamate senza risposta - ritorno al cluster")
+          .arg (active_.request.callsign),
+        true);
+    }
+}
+
+void DxFunClusterPanel::qsoLogged (QString const& call)
+{
+  if (huntState_ != HuntState::Qso && huntState_ != HuntState::Calling) return;
+  if (call.trimmed ().toUpper () != active_.request.callsign.trimmed ().toUpper ()) return;
+
   resetHunt (
     tr ("QSO %1 registrato nel log locale - pronto per il prossimo spot DXFun")
       .arg (active_.request.callsign),
