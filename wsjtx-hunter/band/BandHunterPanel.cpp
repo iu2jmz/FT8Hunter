@@ -7,6 +7,7 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QSettings>
+#include <QSignalBlocker>
 #include <QTime>
 #include <QTimer>
 #include <QVBoxLayout>
@@ -101,8 +102,12 @@ BandHunterPanel::BandHunterPanel (QsyHandler qsyHandler,
       settings_->beginGroup (QStringLiteral ("FT8HunterBandHunter"));
       restoreGeometry (settings_->value (QStringLiteral ("geometry"), saveGeometry ()).toByteArray ());
       for (auto const& band : HunterBands)
-        bandChecks_.value (band)->setChecked (
-          settings_->value (QStringLiteral ("band_") + band, true).toBool ());
+        {
+          auto * box = bandChecks_.value (band);
+          QSignalBlocker blocker {box};
+          box->setChecked (
+            settings_->value (QStringLiteral ("band_") + band, true).toBool ());
+        }
       settings_->endGroup ();
     }
 
