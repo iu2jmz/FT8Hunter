@@ -11,6 +11,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ft8hunter-1.0.13-beta
+  cancel-in-progress: true
+
 env:
   HUNTER_VERSION: "1.0.13 Beta"
   WSJTX_UPSTREAM_SHA: "967c85a6119110788b0df3782cf796485b2cee14"
