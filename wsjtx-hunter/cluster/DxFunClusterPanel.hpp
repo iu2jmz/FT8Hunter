@@ -27,6 +27,7 @@ struct DxFunEvaluation
   quint64 spotHz {0};
   quint64 dialHz {0};
   int offsetHz {0};
+  bool exactSpotDial {false};
   bool newDxcc {false};
   bool newBand {false};
 };
@@ -40,6 +41,7 @@ struct DxFunTuneRequest
   quint64 spotHz {0};
   quint64 dialHz {0};
   int offsetHz {0};
+  bool exactSpotDial {false};
   QString status;
 };
 
@@ -55,7 +57,7 @@ public:
     CompleteQso
   };
 
-  using Evaluator = std::function<DxFunEvaluation (QString const&, quint64)>;
+  using Evaluator = std::function<DxFunEvaluation (QString const&, quint64, QString const&)>;
   using Tuner = std::function<bool (DxFunTuneRequest const&)>;
   using AbortHandler = std::function<void ()>;
 
