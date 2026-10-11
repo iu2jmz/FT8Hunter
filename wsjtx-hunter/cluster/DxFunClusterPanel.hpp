@@ -70,6 +70,7 @@ public:
                               int audioOffset,
                               QString const& myCall);
   bool qsoActive () const;
+  bool huntActive () const;
   int nextTxPowerPercent ();
   void qsoLogged ();
 

@@ -76,3 +76,21 @@ Build marker: v1.0.4 TLS Qt5 fix.
 - il QSO viene quindi registrato normalmente e la finestra si chiude
 - se l'operatore preme **OK** o **Cancel** prima dei 4 secondi, il timer non esegue una seconda azione
 - rimossa la conferma immediata specifica del DXFun Hunter: anche i QSO automatici rispettano ora i 4 secondi
+
+
+## v1.0.10 - Monitor Hunter
+
+Nuova finestra separata **Tools > FT8 Hunter > Monitor Hunter...**.
+
+- interruttore indipendente **Attiva Monitor Hunter automatico**
+- l'automazione e' disponibile soltanto quando e' attivo **Escludi country/DXCC gia lavorati sulla banda corrente** e il bypass BP non e' attivo
+- legge i CQ FT8/FT4 che superano realmente i filtri del monitor
+- seleziona il **primo CQ valido** e conserva gli altri CQ recenti in coda
+- ogni candidato in coda scade dopo 45 secondi se non viene piu' ricevuto; un CQ ripetuto aggiorna la propria presenza senza cambiare l'ordine
+- avvia il normale motore WSJT-X / Auto Seq sul nominativo selezionato
+- senza risposta effettua al massimo **8 trasmissioni** con RF Power **50%, 55%, 60%, 65%, 70%, 75%, 80%, 85%**
+- appena viene ricevuta una risposta diretta, la rampa viene congelata al livello raggiunto e Auto Seq completa normalmente il QSO
+- il passaggio al CQ successivo avviene soltanto quando il QSO e' stato realmente accettato dal **Log QSO**; resta quindi valida l'auto-conferma dopo 4 secondi introdotta in v1.0.9
+- dopo 8 chiamate senza risposta, quel nominativo entra in pausa per 5 minuti per evitare cicli infiniti e viene provato il successivo CQ recente
+- il Monitor Hunter non prende il controllo se radio, Auto, Tune o DXFun Hunter sono gia' impegnati
+- chiudere la finestra Monitor Hunter disattiva l'automazione, evitando trasmissioni automatiche nascoste

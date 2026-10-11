@@ -506,6 +506,11 @@ bool DxFunClusterPanel::qsoActive () const
   return huntState_ == HuntState::Qso;
 }
 
+bool DxFunClusterPanel::huntActive () const
+{
+  return huntState_ != HuntState::Idle;
+}
+
 int DxFunClusterPanel::nextTxPowerPercent ()
 {
   if (huntState_ != HuntState::Qso) return -1;

@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory=$true)][string]$SourceDir,
-    [string]$HunterVersion = "1.0.9"
+    [string]$HunterVersion = "1.0.10"
 )
 
 $ErrorActionPreference = "Stop"
@@ -33,6 +33,8 @@ Copy-Item "wsjtx-hunter/cluster/DxFunCluster.hpp" (Join-Path $hunterDir "DxFunCl
 Copy-Item "wsjtx-hunter/cluster/DxFunCluster.cpp" (Join-Path $hunterDir "DxFunCluster.cpp") -Force
 Copy-Item "wsjtx-hunter/cluster/DxFunClusterPanel.hpp" (Join-Path $hunterDir "DxFunClusterPanel.hpp") -Force
 Copy-Item "wsjtx-hunter/cluster/DxFunClusterPanel.cpp" (Join-Path $hunterDir "DxFunClusterPanel.cpp") -Force
+Copy-Item "wsjtx-hunter/monitor/MonitorHunterPanel.hpp" (Join-Path $hunterDir "MonitorHunterPanel.hpp") -Force
+Copy-Item "wsjtx-hunter/monitor/MonitorHunterPanel.cpp" (Join-Path $hunterDir "MonitorHunterPanel.cpp") -Force
 
 # Compila il modulo Log4OM/MySQL insieme all'applicazione principale.
 Replace-Required "CMakeLists.txt" @'
@@ -44,6 +46,7 @@ Replace-Required "CMakeLists.txt" @'
   FT8Hunter/Log4OmMysqlDialog.cpp
   FT8Hunter/DxFunCluster.cpp
   FT8Hunter/DxFunClusterPanel.cpp
+  FT8Hunter/MonitorHunterPanel.cpp
   Configuration.cpp
 '@
 
@@ -57,6 +60,7 @@ Replace-Required "widgets/mainwindow.cpp" @'
 #include "FT8Hunter/Log4OmMysql.hpp"
 #include "FT8Hunter/Log4OmMysqlDialog.hpp"
 #include "FT8Hunter/DxFunClusterPanel.hpp"
+#include "FT8Hunter/MonitorHunterPanel.hpp"
 '@
 
 Replace-Required "widgets/mainwindow.cpp" @'
@@ -195,6 +199,49 @@ Replace-Required "widgets/mainwindow.cpp" @'
       dxFunPanel->openAndConnect ();
     });
 
+  // FT8 Hunter 1.0.10 - Monitor Hunter automatico: finestra separata.
+  auto startMonitorHunterQso = [this] (MonitorHunterCandidate const& request) -> bool {
+      if (m_transmitting || m_tune || m_auto) return false;
+      if (g_dxFunPanel && g_dxFunPanel->huntActive ()) return false;
+      if (request.mode != m_mode) return false;
+      if (request.mode != QStringLiteral ("FT8") && request.mode != QStringLiteral ("FT4")) return false;
+
+      DecodedText hunterDecode {request.rawText};
+      tx_watchdog (false);
+      m_bDoubleClicked = true;
+      auto_tx_mode (true);
+      processMessage (hunterDecode);
+      ui->dxCallEntry->setText (request.callsign);
+      ui->RxFreqSpinBox->setValue (request.audioOffset);
+      return true;
+    };
+
+  auto abortMonitorHunterQso = [this] {
+      if (m_auto) auto_tx_mode (false);
+      if (m_transmitting) ui->stopTxButton->click ();
+      clearDX ();
+      monitor (true);
+    };
+
+  auto * monitorHunterPanel = new MonitorHunterPanel {
+    m_config.my_callsign (), startMonitorHunterQso, abortMonitorHunterQso, m_settings, this};
+  g_monitorHunterPanel = monitorHunterPanel;
+
+  auto updateMonitorHunterFilter = [this, monitorHunterPanel] {
+      monitorHunterPanel->setFilterActive (
+        ui->actionHideWorkedCountry->isChecked () && !ui->cbBypass->isChecked ());
+    };
+  connect (ui->actionHideWorkedCountry, &QAction::toggled, this,
+           [updateMonitorHunterFilter] (bool) { updateMonitorHunterFilter (); });
+  connect (ui->cbBypass, &QCheckBox::toggled, this,
+           [updateMonitorHunterFilter] (bool) { updateMonitorHunterFilter (); });
+  updateMonitorHunterFilter ();
+
+  auto * monitorHunterAction = hunterMenu->addAction (tr ("Monitor Hunter..."));
+  connect (monitorHunterAction, &QAction::triggered, [monitorHunterPanel] {
+      monitorHunterPanel->openWindow ();
+    });
+
   // FT8 Hunter: aggiorna automaticamente Worked Before da Log4OM.
   auto * log4omRefreshTimer = new QTimer {this};
   log4omRefreshTimer->setInterval (60 * 1000);
@@ -294,7 +341,7 @@ Replace-Required "widgets/mainwindow.cpp" @'
 Write-Host "Applied FT8 Hunter $HunterVersion branding + read-only Log4OM MySQL integration."
 
 
-# FT8 Hunter 1.0.9: filtro country/DXCC gia' lavorati.
+# FT8 Hunter 1.0.10: filtro country/DXCC gia' lavorati.
 Replace-Required "widgets/mainwindow.ui" @'
     <addaction name="actionHideB4"/>
     <addaction name="actionHideToday"/>
@@ -403,15 +450,16 @@ Replace-Required "widgets/mainwindow.cpp" @'
 Write-Host "Applied FT8 Hunter $HunterVersion auto-refresh + worked-country filter + DXFun cluster."
 
 
-# FT8 Hunter 1.0.9: puntatore al pannello cluster usato dai hook decoder/TX.
+# FT8 Hunter 1.0.10: puntatore al pannello cluster usato dai hook decoder/TX.
 Replace-Required "widgets/mainwindow.cpp" @'
 QString earlyDecodes = "";  //ft8md
 '@ @'
 QString earlyDecodes = "";  //ft8md
 DxFunClusterPanel * g_dxFunPanel = nullptr;
+MonitorHunterPanel * g_monitorHunterPanel = nullptr;
 '@
 
-# FT8 Hunter 1.0.9: quando la stazione spottata viene realmente decodificata,
+# FT8 Hunter 1.0.10: quando la stazione spottata viene realmente decodificata,
 # passa dalla finestra di ascolto di 150 s al QSO automatico WSJT-X.
 Replace-Required "widgets/mainwindow.cpp" @'
         QString text = decodedtext.string().replace("<","").replace(">","");   // for Wait & Reply/Call and filtering
@@ -447,16 +495,32 @@ Replace-Required "widgets/mainwindow.cpp" @'
         }
 '@
 
-# FT8 Hunter 1.0.9: rampa RF del 7300 ad ogni trasmissione Hunter.
+# FT8 Hunter 1.0.10: rampa RF del 7300 ad ogni trasmissione Hunter.
 Replace-Required "widgets/mainwindow.cpp" @'
     transmit (snr);
 '@ @'
-    if (g_dxFunPanel && g_dxFunPanel->qsoActive ()) {
+    bool hunterTransmitAllowed = true;
+
+    // Monitor Hunter ha priorita': 8 TX massime senza risposta, 50..85% a passi di 5%.
+    if (g_monitorHunterPanel && g_monitorHunterPanel->qsoActive ()) {
+      auto const monitorPower = g_monitorHunterPanel->nextTxPowerPercent ();
+      if (monitorPower == MonitorHunterPanel::StopTransmission) {
+        hunterTransmitAllowed = false;
+        if (m_auto) auto_tx_mode (false);
+        clearDX ();
+        monitor (true);
+        g_monitorHunterPanel->callingExhausted ();
+      } else if (monitorPower >= 0) {
+        m_config.transceiver_rf_power_percent (monitorPower);
+      }
+    } else if (g_dxFunPanel && g_dxFunPanel->qsoActive ()) {
       auto const hunterPower = g_dxFunPanel->nextTxPowerPercent ();
       if (hunterPower >= 0)
         m_config.transceiver_rf_power_percent (hunterPower);
     }
-    transmit (snr);
+
+    if (hunterTransmitAllowed)
+      transmit (snr);
 '@
 
 # Espone una percentuale RF nella TransceiverState.
@@ -635,7 +699,7 @@ void Configuration::transceiver_volume (qreal volume)
 Write-Host "Applied FT8 Hunter $HunterVersion DXFun HF hunter + 150s acquire + auto-QSO + RF power ramp."
 
 
-# FT8 Hunter 1.0.9: RF Power anche quando l'IC-7300 e' configurato tramite OmniRig.
+# FT8 Hunter 1.0.10: RF Power anche quando l'IC-7300 e' configurato tramite OmniRig.
 # OmniRig accetta SAFEARRAY(BYTE); ActiveQt mappa QByteArray su SAFEARRAY(BYTE).
 Replace-Required "Transceiver/OmniRigTransceiver.hpp" @'
   void do_mode (MODE) override;
@@ -695,7 +759,7 @@ void OmniRigTransceiver::do_ptt (bool on)
 Write-Host "Applied FT8 Hunter $HunterVersion IC-7300 RF power control through OmniRig."
 
 
-# FT8 Hunter 1.0.9: la finestra Log QSO resta visibile per 4 secondi,
+# FT8 Hunter 1.0.10: la finestra Log QSO resta visibile per 4 secondi,
 # poi viene confermata automaticamente come se l'operatore premesse OK.
 # Se l'utente la conferma o la annulla prima, il timer non fa nulla.
 Replace-Required "widgets/logqso.cpp" @'
@@ -716,3 +780,63 @@ Replace-Required "widgets/logqso.cpp" @'
 '@
 
 Write-Host "Applied FT8 Hunter $HunterVersion Log QSO 4-second auto-confirm."
+
+
+# FT8 Hunter 1.0.10: quando il Log QSO emette acceptQSO, il Monitor Hunter puo' passare al CQ successivo.
+Replace-Required "widgets/mainwindow.cpp" @'
+  connect (m_logDlg.data (), &LogQSO::acceptQSO, this, &MainWindow::acceptQSO);
+'@ @'
+  connect (m_logDlg.data (), &LogQSO::acceptQSO, this, &MainWindow::acceptQSO);
+  connect (m_logDlg.data (), &LogQSO::acceptQSO, this,
+           [] (QDateTime const&, QString const& call) {
+      if (g_monitorHunterPanel) g_monitorHunterPanel->qsoLogged (call);
+    });
+'@
+
+Write-Host "Applied FT8 Hunter $HunterVersion Monitor Hunter log-completion hook."
+
+
+# FT8 Hunter 1.0.10: osserva i decode dopo i filtri.
+# Un CQ entra nella coda solo se e' realmente visibile e il suo DXCC non risulta lavorato sulla banda.
+Replace-Required "widgets/mainwindow.cpp" @'
+        // show distance and bearing
+        if (!filtered or m_config.filters_for_Wait_and_Pounce_only()) {  // show decodes if not filtered
+'@ @'
+        // Monitor Hunter: osserva i CQ realmente ammessi dal filtro e tutte le risposte del QSO attivo.
+        if (g_monitorHunterPanel && (m_mode=="FT8" || m_mode=="FT4")) {
+          QString mhDeCall;
+          QString mhGrid;
+          decodedtext.deCallAndGrid (mhDeCall, mhGrid);
+          auto const mhCqCall = decodedtext.CQersCall ().trimmed ().toUpper ();
+          bool mhEligibleCq = false;
+          QString mhCountry;
+
+          auto const mhFilterActive =
+            ui->actionHideWorkedCountry->isChecked () && !ui->cbBypass->isChecked ();
+
+          if (mhFilterActive && !filtered && !mhCqCall.isEmpty ()) {
+            bool callB4Any;
+            bool countryB4Any;
+            bool gridB4Any;
+            bool continentB4Any;
+            bool cqB4Any;
+            bool ituB4Any;
+            auto const& mhEntity = m_logBook.countries ()->lookup (mhCqCall);
+            mhCountry = mhEntity.entity_name;
+            m_logBook.match (mhCqCall, QString {}, mhGrid, mhEntity,
+                             callB4Any, countryB4Any, gridB4Any,
+                             continentB4Any, cqB4Any, ituB4Any, m_currentBand);
+            mhEligibleCq = !mhCountry.isEmpty () && !countryB4Any;
+          }
+
+          g_monitorHunterPanel->observeDecode (
+            decodedtext0.string (), text, mhCqCall, mhDeCall, mhGrid,
+            decodedtext.frequencyOffset (), decodedtext.snr (),
+            m_mode, m_currentBand, mhCountry, mhEligibleCq);
+        }
+
+        // show distance and bearing
+        if (!filtered or m_config.filters_for_Wait_and_Pounce_only()) {  // show decodes if not filtered
+'@
+
+Write-Host "Applied FT8 Hunter $HunterVersion Monitor Hunter decode queue."
