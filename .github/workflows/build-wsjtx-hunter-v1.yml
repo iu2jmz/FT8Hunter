@@ -195,7 +195,7 @@ jobs:
         run: |
           $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
           if (-not (Test-Path $iscc)) { throw "ISCC.exe non trovato" }
-          & $iscc "/DStageDir=$env:GITHUB_WORKSPACE\stage-main" "/DOmniRigSetup=$env:GITHUB_WORKSPACE\vendor\OmniRigSetup.exe" "wsjtx-hunter\installer\FT8Hunter.iss"
+          & $iscc "/DStageDir=$env:GITHUB_WORKSPACE\stage-main" "/DOmniRigSetup=$env:GITHUB_WORKSPACE\vendor\OmniRigSetup.exe" "/DBetaIcon=$env:GITHUB_WORKSPACE\wsjtx-hunter\branding\FT8Hunter.ico" "wsjtx-hunter\installer\FT8Hunter.iss"
           $setup = "$env:GITHUB_WORKSPACE\installer-output-wsjtx\FT8Hunter_Setup_v1.0.13_Beta.exe"
           if (-not (Test-Path $setup)) { throw "FT8Hunter_Setup_v1.0.13_Beta.exe non generato" }
           Get-Item $setup | Format-List Name,Length,LastWriteTime
