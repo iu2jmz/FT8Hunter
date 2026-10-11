@@ -50,7 +50,8 @@ public:
     reset (QString {}, QString {});
   }
 
-  DecodeEvent observe (QString const& deCall,
+  DecodeEvent observe (QString const& firstCall,
+                       QString const& deCall,
                        QString const& cqCall,
                        QString const& cleanText)
   {
@@ -60,14 +61,19 @@ public:
     if (!cq.isEmpty () && cq == target_)
       return DecodeEvent::TargetCq;
 
-    auto const de = normalizeCall (deCall);
-    if (de != target_) return DecodeEvent::None;
+    // Nei messaggi standard FT8/FT4 il primo nominativo e' il mittente,
+    // mentre deCallAndGrid() restituisce il destinatario. La versione
+    // precedente li interpretava al contrario.
+    auto const sender = normalizeCall (firstCall);
+    if (sender != target_) return DecodeEvent::None;
 
-    if (!myCall_.isEmpty () && containsCall (cleanText, myCall_))
+    auto const recipient = normalizeCall (deCall);
+    if (!myCall_.isEmpty ()
+        && (recipient == myCall_ || containsCall (cleanText, myCall_)))
       {
         answered_ = true;
-        // Qualunque nuovo messaggio valido del DX verso di noi rappresenta
-        // progresso/ricezione e riapre il budget di quattro TX.
+        // Ogni nuovo messaggio valido del DX diretto a noi rappresenta
+        // progresso e riapre il budget di quattro trasmissioni.
         noProgressTransmissions_ = 0;
         lastTxStep_.clear ();
         return DecodeEvent::TargetToMe;
