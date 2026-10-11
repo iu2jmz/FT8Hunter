@@ -495,7 +495,7 @@ DxFunClusterPanel::DecodeAction DxFunClusterPanel::observeDecode (
           statusLabel_->setText (
             tr ("DX OCCUPATO - %1 sta lavorando %2; attendo nuovo CQ (max 90 s)")
               .arg (target)
-              .arg (firstCall));
+              .arg (deCall));
           return DecodeAction::None;
         }
 
@@ -534,7 +534,7 @@ DxFunClusterPanel::DecodeAction DxFunClusterPanel::observeDecode (
           statusLabel_->setText (
             tr ("DX OCCUPATO - %1 sta lavorando %2; Hunter in pausa %3/8")
               .arg (target)
-              .arg (firstCall)
+              .arg (deCall)
               .arg (watchdog_.callingTransmissions ()));
           return DecodeAction::PauseBusy;
         }
