@@ -473,7 +473,7 @@ void MonitorHunterPanel::observeDecode (QString const& rawText,
         }
       else if (event == HunterQsoWatchdog::DecodeEvent::TargetToOther)
         {
-          enterBusy (firstCall);
+          enterBusy (deCall);
         }
     }
   else if (state_ == HuntState::Busy)
