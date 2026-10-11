@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory=$true)][string]$SourceDir,
-    [string]$HunterVersion = "1.0.8"
+    [string]$HunterVersion = "1.0.9"
 )
 
 $ErrorActionPreference = "Stop"
@@ -294,7 +294,7 @@ Replace-Required "widgets/mainwindow.cpp" @'
 Write-Host "Applied FT8 Hunter $HunterVersion branding + read-only Log4OM MySQL integration."
 
 
-# FT8 Hunter 1.0.8: filtro country/DXCC gia' lavorati.
+# FT8 Hunter 1.0.9: filtro country/DXCC gia' lavorati.
 Replace-Required "widgets/mainwindow.ui" @'
     <addaction name="actionHideB4"/>
     <addaction name="actionHideToday"/>
@@ -403,7 +403,7 @@ Replace-Required "widgets/mainwindow.cpp" @'
 Write-Host "Applied FT8 Hunter $HunterVersion auto-refresh + worked-country filter + DXFun cluster."
 
 
-# FT8 Hunter 1.0.8: puntatore al pannello cluster usato dai hook decoder/TX.
+# FT8 Hunter 1.0.9: puntatore al pannello cluster usato dai hook decoder/TX.
 Replace-Required "widgets/mainwindow.cpp" @'
 QString earlyDecodes = "";  //ft8md
 '@ @'
@@ -411,7 +411,7 @@ QString earlyDecodes = "";  //ft8md
 DxFunClusterPanel * g_dxFunPanel = nullptr;
 '@
 
-# FT8 Hunter 1.0.8: quando la stazione spottata viene realmente decodificata,
+# FT8 Hunter 1.0.9: quando la stazione spottata viene realmente decodificata,
 # passa dalla finestra di ascolto di 150 s al QSO automatico WSJT-X.
 Replace-Required "widgets/mainwindow.cpp" @'
         QString text = decodedtext.string().replace("<","").replace(">","");   // for Wait & Reply/Call and filtering
@@ -440,7 +440,6 @@ Replace-Required "widgets/mainwindow.cpp" @'
               if (m_auto) cease_auto_Tx_after_QSO ();
               if (!m_tune) {
                 on_logQSOButton_clicked ();
-                if (m_logDlg->isVisible ()) m_logDlg->accept ();
               }
               if (g_dxFunPanel) g_dxFunPanel->qsoLogged ();
             });
@@ -448,7 +447,7 @@ Replace-Required "widgets/mainwindow.cpp" @'
         }
 '@
 
-# FT8 Hunter 1.0.8: rampa RF del 7300 ad ogni trasmissione Hunter.
+# FT8 Hunter 1.0.9: rampa RF del 7300 ad ogni trasmissione Hunter.
 Replace-Required "widgets/mainwindow.cpp" @'
     transmit (snr);
 '@ @'
@@ -636,7 +635,7 @@ void Configuration::transceiver_volume (qreal volume)
 Write-Host "Applied FT8 Hunter $HunterVersion DXFun HF hunter + 150s acquire + auto-QSO + RF power ramp."
 
 
-# FT8 Hunter 1.0.8: RF Power anche quando l'IC-7300 e' configurato tramite OmniRig.
+# FT8 Hunter 1.0.9: RF Power anche quando l'IC-7300 e' configurato tramite OmniRig.
 # OmniRig accetta SAFEARRAY(BYTE); ActiveQt mappa QByteArray su SAFEARRAY(BYTE).
 Replace-Required "Transceiver/OmniRigTransceiver.hpp" @'
   void do_mode (MODE) override;
@@ -694,3 +693,26 @@ void OmniRigTransceiver::do_ptt (bool on)
 '@
 
 Write-Host "Applied FT8 Hunter $HunterVersion IC-7300 RF power control through OmniRig."
+
+
+# FT8 Hunter 1.0.9: la finestra Log QSO resta visibile per 4 secondi,
+# poi viene confermata automaticamente come se l'operatore premesse OK.
+# Se l'utente la conferma o la annulla prima, il timer non fa nulla.
+Replace-Required "widgets/logqso.cpp" @'
+  else
+    {
+      show();
+    }
+}
+'@ @'
+  else
+    {
+      show();
+      QTimer::singleShot (4000, this, [this] {
+          if (isVisible ()) accept ();
+        });
+    }
+}
+'@
+
+Write-Host "Applied FT8 Hunter $HunterVersion Log QSO 4-second auto-confirm."

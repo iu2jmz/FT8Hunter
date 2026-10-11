@@ -67,3 +67,12 @@ Build marker: v1.0.4 TLS Qt5 fix.
 - QSO concluso su 73/RR73: registrazione nel **log locale del programma**; il database MySQL Log4OM resta in sola lettura
 - la rampa RF parte dal **50%** e aumenta di **9 punti percentuali** ad ogni successiva trasmissione senza risposta, fino al 100%; dopo una risposta la potenza resta congelata al livello raggiunto
 - la regolazione RF CAT usa `RIG_LEVEL_RFPOWER` con Hamlib; con **OmniRig + IC-7300** usa il comando CI-V RF POWER `14 0A` (indirizzo 94h)
+
+
+## v1.0.9 - Log QSO automatico dopo 4 secondi
+
+- quando compare la finestra **Log QSO**, resta visibile per **4 secondi**
+- trascorsi 4 secondi viene eseguita automaticamente la stessa conferma del pulsante **OK**
+- il QSO viene quindi registrato normalmente e la finestra si chiude
+- se l'operatore preme **OK** o **Cancel** prima dei 4 secondi, il timer non esegue una seconda azione
+- rimossa la conferma immediata specifica del DXFun Hunter: anche i QSO automatici rispettano ora i 4 secondi
