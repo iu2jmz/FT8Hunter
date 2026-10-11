@@ -17,6 +17,7 @@ namespace
 {
   constexpr int CandidateFreshSeconds = 45;
   constexpr int FailedCooldownSeconds = 300;
+  constexpr int BlacklistSeconds = 5 * 60 * 60;
 }
 
 MonitorHunterPanel::MonitorHunterPanel (QString const& myCall,
@@ -46,8 +47,14 @@ MonitorHunterPanel::MonitorHunterPanel (QString const& myCall,
   , table_ {new QTableWidget {0, 8, this}}
   , stopButton_ {new QPushButton {tr ("Ferma QSO Hunter"), this}}
   , clearButton_ {new QPushButton {tr ("Svuota coda"), this}}
+  , blacklistButton_ {new QPushButton {tr ("Blacklist 5h"), this}}
+  , blacklistDialog_ {new QDialog {this}}
+  , blacklistTable_ {new QTableWidget {0, 4, blacklistDialog_}}
+  , reinstateButton_ {new QPushButton {tr ("Riabilita"), blacklistDialog_}}
+  , reinstateAllButton_ {new QPushButton {tr ("Riabilita tutte"), blacklistDialog_}}
   , retryTimer_ {new QTimer {this}}
   , busyTimer_ {new QTimer {this}}
+  , blacklistTimer_ {new QTimer {this}}
 {
   setWindowTitle (tr ("FT8 Hunter - Monitor Hunter"));
   setModal (false);
@@ -97,6 +104,7 @@ MonitorHunterPanel::MonitorHunterPanel (QString const& myCall,
   top->addSpacing (12);
   top->addWidget (filterLabel_);
   top->addStretch ();
+  top->addWidget (blacklistButton_);
   top->addWidget (stopButton_);
   top->addWidget (clearButton_);
 
@@ -113,10 +121,43 @@ MonitorHunterPanel::MonitorHunterPanel (QString const& myCall,
   root->addWidget (table_);
   setLayout (root);
 
+  blacklistDialog_->setWindowTitle (tr ("FT8 Hunter - Blacklist Monitor Hunter"));
+  blacklistDialog_->setModal (false);
+  blacklistDialog_->setMinimumSize (560, 320);
+  blacklistTable_->setHorizontalHeaderLabels (
+    {tr ("Nominativo"), tr ("Banda"), tr ("Inserita UTC"), tr ("Tempo residuo")});
+  blacklistTable_->setSelectionBehavior (QAbstractItemView::SelectRows);
+  blacklistTable_->setSelectionMode (QAbstractItemView::SingleSelection);
+  blacklistTable_->setEditTriggers (QAbstractItemView::NoEditTriggers);
+  blacklistTable_->verticalHeader ()->setVisible (false);
+  for (int i = 0; i < 3; ++i)
+    blacklistTable_->horizontalHeader ()->setSectionResizeMode (i, QHeaderView::ResizeToContents);
+  blacklistTable_->horizontalHeader ()->setSectionResizeMode (3, QHeaderView::Stretch);
+
+  auto * blacklistButtons = new QHBoxLayout;
+  blacklistButtons->addStretch ();
+  blacklistButtons->addWidget (reinstateButton_);
+  blacklistButtons->addWidget (reinstateAllButton_);
+  auto * blacklistRoot = new QVBoxLayout;
+  blacklistRoot->addWidget (new QLabel {
+    tr ("Le stazioni che non rispondono dopo 8/8 chiamate sono escluse per 5 ore."), blacklistDialog_});
+  blacklistRoot->addWidget (blacklistTable_);
+  blacklistRoot->addLayout (blacklistButtons);
+  blacklistDialog_->setLayout (blacklistRoot);
+
   retryTimer_->setSingleShot (true);
   busyTimer_->setSingleShot (true);
+  blacklistTimer_->setInterval (1000);
   connect (retryTimer_, &QTimer::timeout, this, [this] { attemptStart (); });
   connect (busyTimer_, &QTimer::timeout, this, [this] { busyTimeout (); });
+  connect (blacklistTimer_, &QTimer::timeout, this, [this] {
+      pruneBlacklist ();
+      updateBlacklistWindow ();
+    });
+  connect (blacklistButton_, &QPushButton::clicked, this, [this] { openBlacklistWindow (); });
+  connect (reinstateButton_, &QPushButton::clicked, this, [this] { reinstateSelected (); });
+  connect (reinstateAllButton_, &QPushButton::clicked, this, [this] { reinstateAll (); });
+  blacklistTimer_->start ();
 
   connect (autoCheck_, &QCheckBox::toggled, this, [this] (bool checked) {
       if (checked)
@@ -165,6 +206,8 @@ MonitorHunterPanel::MonitorHunterPanel (QString const& myCall,
       settings_->endGroup ();
     }
 
+  loadBlacklist ();
+  updateBlacklistWindow ();
   setFilterActive (false);
   updateSummary ();
 }
@@ -279,8 +322,16 @@ void MonitorHunterPanel::setFilterActive (bool active)
   updateSummary ();
 }
 
+bool MonitorHunterPanel::isBlacklisted (QString const& call, QDateTime const& now) const
+{
+  auto const key = call.trimmed ().toUpper ();
+  auto const it = blacklist_.constFind (key);
+  return it != blacklist_.constEnd () && it->untilUtc.isValid () && now < it->untilUtc;
+}
+
 bool MonitorHunterPanel::inCooldown (QString const& call, QDateTime const& now) const
 {
+  if (isBlacklisted (call, now)) return true;
   auto const until = cooldownUntil_.value (call.trimmed ().toUpper ());
   return until.isValid () && now < until;
 }
@@ -407,7 +458,7 @@ void MonitorHunterPanel::observeDecode (QString const& rawText,
                                         bool eligibleCq)
 {
   auto const now = QDateTime::currentDateTimeUtc ();
-  auto const event = watchdog_.observe (deCall, cqCall, cleanText);
+  auto const event = watchdog_.observe (firstCall, deCall, cqCall, cleanText);
 
   if (state_ == HuntState::Calling)
     {
@@ -563,8 +614,12 @@ void MonitorHunterPanel::transmissionExhausted ()
   else
     {
       ++failedCalls_;
-      event = tr ("8/8 - NESSUNA RISPOSTA");
-      status = tr ("8 chiamate senza risposta - cerco il prossimo CQ");
+      event = tr ("8/8 - NESSUNA RISPOSTA - BLACKLIST 5 ORE");
+      status = tr ("8 chiamate senza risposta - blacklist 5 ore; cerco il prossimo CQ");
+      addToBlacklist (active_);
+      appendEvent (active_, event);
+      resetActive (status, true, false);
+      return;
     }
 
   appendEvent (active_, event);
@@ -635,6 +690,170 @@ void MonitorHunterPanel::resetActive (QString const& status, bool abortRadio, bo
   updateSummary ();
 }
 
+void MonitorHunterPanel::addToBlacklist (MonitorHunterCandidate const& candidate)
+{
+  auto const call = candidate.callsign.trimmed ().toUpper ();
+  if (call.isEmpty ()) return;
+
+  auto const now = QDateTime::currentDateTimeUtc ();
+  BlacklistEntry entry;
+  entry.band = candidate.band;
+  entry.addedUtc = now;
+  entry.untilUtc = now.addSecs (BlacklistSeconds);
+  blacklist_.insert (call, entry);
+
+  for (int i = queue_.size () - 1; i >= 0; --i)
+    if (queue_.at (i).callsign.trimmed ().toUpper () == call)
+      queue_.removeAt (i);
+
+  saveBlacklist ();
+  updateBlacklistWindow ();
+}
+
+void MonitorHunterPanel::pruneBlacklist ()
+{
+  auto const now = QDateTime::currentDateTimeUtc ();
+  bool changed = false;
+  for (auto it = blacklist_.begin (); it != blacklist_.end (); )
+    {
+      if (!it->untilUtc.isValid () || now >= it->untilUtc)
+        {
+          it = blacklist_.erase (it);
+          changed = true;
+        }
+      else
+        {
+          ++it;
+        }
+    }
+  if (changed) saveBlacklist ();
+}
+
+void MonitorHunterPanel::loadBlacklist ()
+{
+  if (!settings_) return;
+
+  settings_->beginGroup (QStringLiteral ("FT8HunterMonitor"));
+  auto const rows = settings_->value (QStringLiteral ("blacklist5h")).toStringList ();
+  settings_->endGroup ();
+
+  auto const now = QDateTime::currentDateTimeUtc ();
+  for (auto const& row : rows)
+    {
+      auto const parts = row.split (QLatin1Char ('|'));
+      if (parts.size () != 4) continue;
+
+      bool okAdded = false;
+      bool okUntil = false;
+      auto const added = parts.at (2).toLongLong (&okAdded);
+      auto const until = parts.at (3).toLongLong (&okUntil);
+      if (!okAdded || !okUntil) continue;
+
+      BlacklistEntry entry;
+      entry.band = parts.at (1);
+      entry.addedUtc = QDateTime::fromSecsSinceEpoch (added, Qt::UTC);
+      entry.untilUtc = QDateTime::fromSecsSinceEpoch (until, Qt::UTC);
+      if (entry.untilUtc > now)
+        blacklist_.insert (parts.at (0).trimmed ().toUpper (), entry);
+    }
+  saveBlacklist ();
+}
+
+void MonitorHunterPanel::saveBlacklist () const
+{
+  if (!settings_) return;
+
+  QStringList rows;
+  for (auto it = blacklist_.constBegin (); it != blacklist_.constEnd (); ++it)
+    {
+      rows.append (
+        QStringLiteral ("%1|%2|%3|%4")
+          .arg (it.key ())
+          .arg (it->band)
+          .arg (it->addedUtc.toSecsSinceEpoch ())
+          .arg (it->untilUtc.toSecsSinceEpoch ()));
+    }
+
+  settings_->beginGroup (QStringLiteral ("FT8HunterMonitor"));
+  settings_->setValue (QStringLiteral ("blacklist5h"), rows);
+  settings_->endGroup ();
+  settings_->sync ();
+}
+
+void MonitorHunterPanel::openBlacklistWindow ()
+{
+  pruneBlacklist ();
+  updateBlacklistWindow ();
+  blacklistDialog_->show ();
+  blacklistDialog_->raise ();
+  blacklistDialog_->activateWindow ();
+}
+
+void MonitorHunterPanel::updateBlacklistWindow ()
+{
+  auto const selectedCall =
+    blacklistTable_->currentRow () >= 0 && blacklistTable_->item (blacklistTable_->currentRow (), 0)
+      ? blacklistTable_->item (blacklistTable_->currentRow (), 0)->text ()
+      : QString {};
+
+  blacklistTable_->setRowCount (0);
+  auto const now = QDateTime::currentDateTimeUtc ();
+  QStringList calls = blacklist_.keys ();
+  calls.sort ();
+
+  for (auto const& call : calls)
+    {
+      auto const entry = blacklist_.value (call);
+      if (!entry.untilUtc.isValid () || now >= entry.untilUtc) continue;
+
+      auto seconds = now.secsTo (entry.untilUtc);
+      if (seconds < 0) seconds = 0;
+      auto const h = seconds / 3600;
+      auto const m = (seconds % 3600) / 60;
+      auto const s = seconds % 60;
+
+      auto const row = blacklistTable_->rowCount ();
+      blacklistTable_->insertRow (row);
+      blacklistTable_->setItem (row, 0, new QTableWidgetItem {call});
+      blacklistTable_->setItem (row, 1, new QTableWidgetItem {entry.band});
+      blacklistTable_->setItem (row, 2, new QTableWidgetItem {
+        entry.addedUtc.toUTC ().toString (QStringLiteral ("dd/MM HH:mm:ss"))});
+      blacklistTable_->setItem (row, 3, new QTableWidgetItem {
+        QStringLiteral ("%1:%2:%3")
+          .arg (h, 2, 10, QLatin1Char ('0'))
+          .arg (m, 2, 10, QLatin1Char ('0'))
+          .arg (s, 2, 10, QLatin1Char ('0'))});
+
+      if (!selectedCall.isEmpty () && selectedCall == call)
+        blacklistTable_->selectRow (row);
+    }
+
+  blacklistButton_->setText (tr ("Blacklist 5h (%1)").arg (blacklistTable_->rowCount ()));
+  reinstateButton_->setEnabled (blacklistTable_->rowCount () > 0);
+  reinstateAllButton_->setEnabled (blacklistTable_->rowCount () > 0);
+}
+
+void MonitorHunterPanel::reinstateSelected ()
+{
+  auto const row = blacklistTable_->currentRow ();
+  if (row < 0 || !blacklistTable_->item (row, 0)) return;
+
+  auto const call = blacklistTable_->item (row, 0)->text ().trimmed ().toUpper ();
+  blacklist_.remove (call);
+  cooldownUntil_.remove (call);
+  saveBlacklist ();
+  updateBlacklistWindow ();
+  updateSummary ();
+}
+
+void MonitorHunterPanel::reinstateAll ()
+{
+  blacklist_.clear ();
+  saveBlacklist ();
+  updateBlacklistWindow ();
+  updateSummary ();
+}
+
 void MonitorHunterPanel::appendEvent (MonitorHunterCandidate const& candidate, QString const& state)
 {
   table_->insertRow (0);
@@ -657,10 +876,11 @@ void MonitorHunterPanel::appendEvent (MonitorHunterCandidate const& candidate, Q
 void MonitorHunterPanel::updateSummary ()
 {
   queueLabel_->setText (
-    tr ("Coda CQ recenti: %1   |   QSO completati: %2   |   8/8 senza risposta: %3")
+    tr ("Coda CQ recenti: %1   |   QSO completati: %2   |   8/8 senza risposta: %3   |   Blacklist 5h: %4")
       .arg (queue_.size ())
       .arg (completedQsos_)
-      .arg (failedCalls_));
+      .arg (failedCalls_)
+      .arg (blacklist_.size ()));
 }
 
 void MonitorHunterPanel::closeEvent (QCloseEvent * event)
