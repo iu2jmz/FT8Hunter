@@ -71,6 +71,7 @@ public:
   bool huntActive () const;
   bool automaticEnabled () const;
   bool setAutomaticEnabled (bool enabled);
+  bool enqueueExternalCandidate (MonitorHunterCandidate const& candidate);
   int nextTxPowerPercent (QString const& txMessage);
   void transmissionExhausted ();
   void qsoLogged (QString const& call);
