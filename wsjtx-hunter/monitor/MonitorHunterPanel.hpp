@@ -96,6 +96,15 @@ private:
   void appendEvent (MonitorHunterCandidate const& candidate, QString const& state);
   void updateSummary ();
   bool inCooldown (QString const& call, QDateTime const& now) const;
+  bool isBlacklisted (QString const& call, QDateTime const& now) const;
+  void addToBlacklist (MonitorHunterCandidate const& candidate);
+  void pruneBlacklist ();
+  void loadBlacklist ();
+  void saveBlacklist () const;
+  void openBlacklistWindow ();
+  void updateBlacklistWindow ();
+  void reinstateSelected ();
+  void reinstateAll ();
   void showOffState (QString const& detail);
   void showListeningState (QString const& detail);
   void showCallingState (QString const& detail);
@@ -122,14 +131,28 @@ private:
   QTableWidget * table_;
   QPushButton * stopButton_;
   QPushButton * clearButton_;
+  QPushButton * blacklistButton_;
+  QDialog * blacklistDialog_;
+  QTableWidget * blacklistTable_;
+  QPushButton * reinstateButton_;
+  QPushButton * reinstateAllButton_;
   QTimer * retryTimer_;
   QTimer * busyTimer_;
+  QTimer * blacklistTimer_;
 
   bool filterActive_ {false};
   HuntState state_ {HuntState::Idle};
   MonitorHunterCandidate active_;
   QList<MonitorHunterCandidate> queue_;
+  struct BlacklistEntry
+  {
+    QString band;
+    QDateTime addedUtc;
+    QDateTime untilUtc;
+  };
+
   QHash<QString, QDateTime> cooldownUntil_;
+  QHash<QString, BlacklistEntry> blacklist_;
   HunterQsoWatchdog watchdog_;
   HunterQsoWatchdog::StopReason pendingStopReason_ {HunterQsoWatchdog::StopReason::None};
   int lastPowerPercent_ {50};
