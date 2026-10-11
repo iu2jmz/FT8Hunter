@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory=$true)][string]$SourceDir,
-    [string]$HunterVersion = "1.0.13"
+    [string]$HunterVersion = "1.0.13 Beta"
 )
 
 $ErrorActionPreference = "Stop"
@@ -1548,3 +1548,285 @@ Replace-Required "widgets/mainwindow.cpp" @'
 '@
 
 Write-Host "Applied FT8 Hunter $HunterVersion exact DXFun QSY/split + automatic Band Hunter."
+
+
+# ---------------------------------------------------------------------------
+# FT8 Hunter 1.0.13 Beta
+# Branding IU2JMZ, PSK Reporter sperimentale e integrazione Hunter.
+# ---------------------------------------------------------------------------
+
+# Mantieni la Beta separata dalla stabile anche per impostazioni e dati utente.
+Replace-Required "main.cpp" 'a.setApplicationName ("FT8 Hunter");' 'a.setApplicationName ("FT8 Hunter Beta");'
+
+# Il logo approvato viene usato per splash e icona Windows dell'eseguibile.
+if (-not (Test-Path "wsjtx-hunter/branding/FT8Hunter.png")) {
+    throw "Logo Beta non trovato: wsjtx-hunter/branding/FT8Hunter.png"
+}
+if (-not (Test-Path "wsjtx-hunter/branding/FT8Hunter.ico")) {
+    throw "Icona Beta non trovata: wsjtx-hunter/branding/FT8Hunter.ico"
+}
+Copy-Item "wsjtx-hunter/branding/FT8Hunter.ico" (Join-Path $SourceDir "icons/windows-icons/wsjtx.ico") -Force
+Copy-Item "wsjtx-hunter/branding/FT8Hunter.png" (Join-Path $SourceDir "artwork/splash.png") -Force
+
+# PSK Reporter: sorgente sperimentale separata.
+Copy-Item "wsjtx-hunter/psk/PskReporterMqtt.hpp" (Join-Path $hunterDir "PskReporterMqtt.hpp") -Force
+Copy-Item "wsjtx-hunter/psk/PskReporterMqtt.cpp" (Join-Path $hunterDir "PskReporterMqtt.cpp") -Force
+Copy-Item "wsjtx-hunter/psk/PskReporterPanel.hpp" (Join-Path $hunterDir "PskReporterPanel.hpp") -Force
+Copy-Item "wsjtx-hunter/psk/PskReporterPanel.cpp" (Join-Path $hunterDir "PskReporterPanel.cpp") -Force
+
+Replace-Required "CMakeLists.txt" @'
+  FT8Hunter/MonitorHunterPanel.cpp
+  FT8Hunter/BandHunterPanel.cpp
+  Configuration.cpp
+'@ @'
+  FT8Hunter/MonitorHunterPanel.cpp
+  FT8Hunter/BandHunterPanel.cpp
+  FT8Hunter/PskReporterMqtt.cpp
+  FT8Hunter/PskReporterPanel.cpp
+  Configuration.cpp
+'@
+
+Replace-Required "widgets/mainwindow.cpp" @'
+#include "FT8Hunter/MonitorHunterPanel.hpp"
+#include "FT8Hunter/BandHunterPanel.hpp"
+'@ @'
+#include "FT8Hunter/MonitorHunterPanel.hpp"
+#include "FT8Hunter/BandHunterPanel.hpp"
+#include "FT8Hunter/PskReporterPanel.hpp"
+'@
+
+Replace-Required "widgets/mainwindow.cpp" @'
+DxFunClusterPanel * g_dxFunPanel = nullptr;
+MonitorHunterPanel * g_monitorHunterPanel = nullptr;
+BandHunterPanel * g_bandHunterPanel = nullptr;
+'@ @'
+DxFunClusterPanel * g_dxFunPanel = nullptr;
+MonitorHunterPanel * g_monitorHunterPanel = nullptr;
+BandHunterPanel * g_bandHunterPanel = nullptr;
+PskReporterPanel * g_pskReporterPanel = nullptr;
+'@
+
+# Se arriva una priorita' DXFun mentre PSK Reporter sta solo ascoltando un
+# candidato, PSK cede immediatamente la radio. DXFun resta la sorgente remota
+# con priorita' maggiore.
+Replace-Required "widgets/mainwindow.cpp" @'
+  auto tuneDxFunSpot = [this] (DxFunTuneRequest const& request) -> bool {
+      if (m_transmitting || m_tune || m_auto) return false;
+      if (g_monitorHunterPanel && g_monitorHunterPanel->huntActive ()) return false;
+'@ @'
+  auto tuneDxFunSpot = [this] (DxFunTuneRequest const& request) -> bool {
+      if (m_transmitting || m_tune || m_auto) return false;
+      if (g_pskReporterPanel && g_pskReporterPanel->huntActive ())
+        g_pskReporterPanel->yieldToDxFun ();
+      if (g_monitorHunterPanel && g_monitorHunterPanel->huntActive ()) return false;
+'@
+
+# Monitor Hunter non deve partire su un altro candidato mentre PSK Reporter
+# sta effettuando la verifica locale del proprio target.
+Replace-Required "widgets/mainwindow.cpp" @'
+      if (m_transmitting || m_tune || m_auto) return MonitorHunterPanel::StartUnavailable;
+      if (g_dxFunPanel && g_dxFunPanel->huntActive ()) return MonitorHunterPanel::StartUnavailable;
+'@ @'
+      if (m_transmitting || m_tune || m_auto) return MonitorHunterPanel::StartUnavailable;
+      if (g_dxFunPanel && g_dxFunPanel->huntActive ()) return MonitorHunterPanel::StartUnavailable;
+      if (g_pskReporterPanel && g_pskReporterPanel->huntActive ()) return MonitorHunterPanel::StartUnavailable;
+'@
+
+# Crea la finestra PSK Reporter Beta dopo Band Hunter.
+Replace-Required "widgets/mainwindow.cpp" @'
+  auto * bandHunterAction = hunterMenu->addAction (tr ("Band Hunter..."));
+  connect (bandHunterAction, &QAction::triggered, [bandHunterPanel] {
+      bandHunterPanel->openWindow ();
+    });
+
+  // FT8 Hunter: aggiorna automaticamente Worked Before da Log4OM.
+'@ @'
+  auto * bandHunterAction = hunterMenu->addAction (tr ("Band Hunter..."));
+  connect (bandHunterAction, &QAction::triggered, [bandHunterPanel] {
+      bandHunterPanel->openWindow ();
+    });
+
+  auto evaluatePskReporter =
+    [this] (PskReporterReport const& report) -> PskReporterEvaluation {
+      PskReporterEvaluation out;
+      out.signalHz = report.frequencyHz;
+      out.mode = report.mode;
+      out.band = m_config.bands ()->find (report.frequencyHz);
+
+      static QStringList const hunterBands {
+        QStringLiteral ("80m"), QStringLiteral ("60m"), QStringLiteral ("40m"),
+        QStringLiteral ("30m"), QStringLiteral ("20m"), QStringLiteral ("17m"),
+        QStringLiteral ("15m"), QStringLiteral ("12m"), QStringLiteral ("10m")};
+
+      if (!hunterBands.contains (out.band)) return out;
+      if (out.mode != QStringLiteral ("FT8") && out.mode != QStringLiteral ("FT4")) return out;
+
+      // PSK Reporter fornisce la frequenza RF del segnale, non necessariamente
+      // il dial. Preferisci un dial FT8/FT4 configurato quando il segnale cade
+      // nel passabanda; altrimenti crea una base con il segnale a 1500 Hz.
+      qint64 bestDistance = std::numeric_limits<qint64>::max ();
+      auto const region = m_config.region ();
+      for (auto const& item : m_config.frequencies ()->frequency_list ())
+        {
+          auto const itemMode = QString::fromLatin1 (Modes::name (item.mode_));
+          if (itemMode != out.mode) continue;
+          if (item.region_ != IARURegions::ALL && item.region_ != region) continue;
+          if (m_config.bands ()->find (item.frequency_) != out.band) continue;
+
+          auto const offset =
+            static_cast<qint64> (report.frequencyHz) - static_cast<qint64> (item.frequency_);
+          if (offset < 200 || offset > 5000) continue;
+
+          auto const distance = qAbs (offset - 1500);
+          if (distance >= bestDistance) continue;
+          bestDistance = distance;
+          out.dialHz = item.frequency_;
+          out.offsetHz = static_cast<int> (offset);
+        }
+
+      if (!out.dialHz)
+        {
+          if (report.frequencyHz <= 1500) return out;
+          out.dialHz = report.frequencyHz - 1500;
+          out.offsetHz = 1500;
+        }
+
+      auto const& entity = m_logBook.countries ()->lookup (report.callsign);
+      out.country = entity.entity_name;
+      if (out.country.isEmpty ()) return out;
+
+      bool callB4 = true;
+      bool countryB4 = true;
+      bool gridB4 = true;
+      bool continentB4 = true;
+      bool cqB4 = true;
+      bool ituB4 = true;
+
+      m_logBook.match (report.callsign, QString {}, report.grid, entity,
+                       callB4, countryB4, gridB4, continentB4, cqB4, ituB4);
+      out.newDxcc = !countryB4;
+
+      callB4 = countryB4 = gridB4 = continentB4 = cqB4 = ituB4 = true;
+      m_logBook.match (report.callsign, QString {}, report.grid, entity,
+                       callB4, countryB4, gridB4, continentB4, cqB4, ituB4, out.band);
+      out.newBand = !countryB4;
+      out.digital = true;
+      return out;
+    };
+
+  auto tunePskReporter =
+    [this] (PskReporterTuneRequest const& request) -> bool {
+      if (m_transmitting || m_tune || m_auto) return false;
+      if (g_dxFunPanel && g_dxFunPanel->huntActive ()) return false;
+      if (g_monitorHunterPanel && g_monitorHunterPanel->huntActive ()) return false;
+      if (request.mode != QStringLiteral ("FT8") && request.mode != QStringLiteral ("FT4"))
+        return false;
+
+      if (g_bandHunterPanel && g_bandHunterPanel->active ())
+        g_bandHunterPanel->pauseForExternalHunter ();
+
+      if (request.mode == QStringLiteral ("FT8") && m_mode != QStringLiteral ("FT8"))
+        on_actionFT8_triggered ();
+      else if (request.mode == QStringLiteral ("FT4") && m_mode != QStringLiteral ("FT4"))
+        on_actionFT4_triggered ();
+
+      auto const row = m_config.frequencies ()->best_working_frequency (request.dialHz);
+      if (row < 0) return false;
+
+      ui->pbBandHopping->setChecked (false);
+      ui->bandComboBox->setCurrentIndex (row);
+      m_bandEdited = true;
+      band_changed (request.dialHz);
+      m_wideGraph->setRxBand (request.band);
+
+      auto offset = request.offsetHz;
+      if (offset < ui->RxFreqSpinBox->minimum ()) offset = ui->RxFreqSpinBox->minimum ();
+      if (offset > ui->RxFreqSpinBox->maximum ()) offset = ui->RxFreqSpinBox->maximum ();
+      ui->RxFreqSpinBox->setValue (offset);
+
+      setRig (request.dialHz);
+      setXIT (ui->TxFreqSpinBox->value (), request.dialHz);
+      monitor (true);
+
+      showStatusMessage (
+        tr ("PSK Reporter Beta -> %1 %2 | %3 | ascolto CQ locale")
+          .arg (request.callsign)
+          .arg (request.band)
+          .arg (request.status));
+      return true;
+    };
+
+  auto handoffPskReporter =
+    [monitorHunterPanel] (QString const& rawText,
+                          QString const& callsign,
+                          QString const& grid,
+                          QString const& country,
+                          QString const& mode,
+                          QString const& band,
+                          int audioOffset,
+                          int snr) -> bool {
+      MonitorHunterCandidate candidate;
+      candidate.callsign = callsign;
+      candidate.grid = grid;
+      candidate.country = country;
+      candidate.mode = mode;
+      candidate.band = band;
+      candidate.rawText = rawText;
+      candidate.audioOffset = audioOffset;
+      candidate.snr = snr;
+      candidate.receivedUtc = QDateTime::currentDateTimeUtc ();
+      return monitorHunterPanel->enqueueExternalCandidate (candidate);
+    };
+
+  auto * pskReporterPanel = new PskReporterPanel {
+    evaluatePskReporter, tunePskReporter, handoffPskReporter, m_settings, this};
+  g_pskReporterPanel = pskReporterPanel;
+
+  auto * pskReporterAction =
+    hunterMenu->addAction (tr ("PSK Reporter Beta..."));
+  connect (pskReporterAction, &QAction::triggered, [pskReporterPanel] {
+      pskReporterPanel->openWindow ();
+    });
+
+  // FT8 Hunter: aggiorna automaticamente Worked Before da Log4OM.
+'@
+
+# Il Band Hunter resta in pausa anche durante la verifica PSK Reporter.
+Replace-Required "widgets/mainwindow.cpp" @'
+    [] { return g_dxFunPanel && g_dxFunPanel->huntActive (); },
+    m_settings, this};
+'@ @'
+    [] {
+      return (g_dxFunPanel && g_dxFunPanel->huntActive ())
+        || (g_pskReporterPanel && g_pskReporterPanel->huntActive ());
+    },
+    m_settings, this};
+'@
+
+# Nel decoder locale PSK Reporter puo' confermare il target solo tramite un
+# vero CQ ricevuto da questa radio. Durante quella verifica gli altri CQ non
+# vengono messi automaticamente in caccia dal Monitor Hunter.
+Replace-Required "widgets/mainwindow.cpp" @'
+          g_monitorHunterPanel->observeDecode (
+            decodedtext0.string (), text, decodedtext.call ().trimmed ().toUpper (),
+            mhCqCall, mhDeCall, mhGrid,
+            decodedtext.frequencyOffset (), decodedtext.snr (),
+            m_mode, m_currentBand, mhCountry, mhEligibleCq);
+'@ @'
+          bool const pskWasListening =
+            g_pskReporterPanel && g_pskReporterPanel->huntActive ();
+
+          if (g_pskReporterPanel)
+            g_pskReporterPanel->observeLocalCq (
+              decodedtext0.string (), mhCqCall, mhGrid, mhCountry,
+              m_mode, m_currentBand,
+              decodedtext.frequencyOffset (), decodedtext.snr (), mhEligibleCq);
+
+          g_monitorHunterPanel->observeDecode (
+            decodedtext0.string (), text, decodedtext.call ().trimmed ().toUpper (),
+            mhCqCall, mhDeCall, mhGrid,
+            decodedtext.frequencyOffset (), decodedtext.snr (),
+            m_mode, m_currentBand, mhCountry, mhEligibleCq && !pskWasListening);
+'@
+
+Write-Host "Applied FT8 Hunter $HunterVersion Beta branding + PSK Reporter local-CQ gate."
