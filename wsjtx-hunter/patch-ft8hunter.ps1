@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory=$true)][string]$SourceDir,
-    [string]$HunterVersion = "1.0.12"
+    [string]$HunterVersion = "1.0.13"
 )
 
 $ErrorActionPreference = "Stop"
@@ -199,7 +199,7 @@ Replace-Required "widgets/mainwindow.cpp" @'
       dxFunPanel->openAndConnect ();
     });
 
-  // FT8 Hunter 1.0.12 - Monitor Hunter automatico: finestra separata.
+  // FT8 Hunter 1.0.13 - Monitor Hunter automatico: finestra separata.
   // La RX segue il DX; la TX viene bloccata su uno slot indipendente per tutto il QSO.
   auto startMonitorHunterQso =
     [this] (MonitorHunterCandidate const& request, bool autoTxSlot) -> int {
@@ -380,7 +380,7 @@ Replace-Required "widgets/mainwindow.cpp" @'
 Write-Host "Applied FT8 Hunter $HunterVersion branding + read-only Log4OM MySQL integration."
 
 
-# FT8 Hunter 1.0.12: filtro country/DXCC gia' lavorati.
+# FT8 Hunter 1.0.13: filtro country/DXCC gia' lavorati.
 Replace-Required "widgets/mainwindow.ui" @'
     <addaction name="actionHideB4"/>
     <addaction name="actionHideToday"/>
@@ -489,7 +489,7 @@ Replace-Required "widgets/mainwindow.cpp" @'
 Write-Host "Applied FT8 Hunter $HunterVersion auto-refresh + worked-country filter + DXFun cluster."
 
 
-# FT8 Hunter 1.0.12: puntatore al pannello cluster usato dai hook decoder/TX.
+# FT8 Hunter 1.0.13: puntatore al pannello cluster usato dai hook decoder/TX.
 Replace-Required "widgets/mainwindow.cpp" @'
 QString earlyDecodes = "";  //ft8md
 '@ @'
@@ -498,7 +498,7 @@ DxFunClusterPanel * g_dxFunPanel = nullptr;
 MonitorHunterPanel * g_monitorHunterPanel = nullptr;
 '@
 
-# FT8 Hunter 1.0.12: quando la stazione spottata viene realmente decodificata,
+# FT8 Hunter 1.0.13: quando la stazione spottata viene realmente decodificata,
 # passa dalla finestra di ascolto di 150 s al QSO automatico WSJT-X.
 Replace-Required "widgets/mainwindow.cpp" @'
         QString text = decodedtext.string().replace("<","").replace(">","");   // for Wait & Reply/Call and filtering
@@ -534,7 +534,7 @@ Replace-Required "widgets/mainwindow.cpp" @'
         }
 '@
 
-# FT8 Hunter 1.0.12: rampa RF del 7300 ad ogni trasmissione Hunter.
+# FT8 Hunter 1.0.13: rampa RF del 7300 ad ogni trasmissione Hunter.
 Replace-Required "widgets/mainwindow.cpp" @'
     transmit (snr);
 '@ @'
@@ -738,7 +738,7 @@ void Configuration::transceiver_volume (qreal volume)
 Write-Host "Applied FT8 Hunter $HunterVersion DXFun HF hunter + 150s acquire + auto-QSO + RF power ramp."
 
 
-# FT8 Hunter 1.0.12: RF Power anche quando l'IC-7300 e' configurato tramite OmniRig.
+# FT8 Hunter 1.0.13: RF Power anche quando l'IC-7300 e' configurato tramite OmniRig.
 # OmniRig accetta SAFEARRAY(BYTE); ActiveQt mappa QByteArray su SAFEARRAY(BYTE).
 Replace-Required "Transceiver/OmniRigTransceiver.hpp" @'
   void do_mode (MODE) override;
@@ -798,7 +798,7 @@ void OmniRigTransceiver::do_ptt (bool on)
 Write-Host "Applied FT8 Hunter $HunterVersion IC-7300 RF power control through OmniRig."
 
 
-# FT8 Hunter 1.0.12: la finestra Log QSO resta visibile per 4 secondi,
+# FT8 Hunter 1.0.13: la finestra Log QSO resta visibile per 4 secondi,
 # poi viene confermata automaticamente come se l'operatore premesse OK.
 # Se l'utente la conferma o la annulla prima, il timer non fa nulla.
 Replace-Required "widgets/logqso.cpp" @'
@@ -821,7 +821,7 @@ Replace-Required "widgets/logqso.cpp" @'
 Write-Host "Applied FT8 Hunter $HunterVersion Log QSO 4-second auto-confirm."
 
 
-# FT8 Hunter 1.0.12: quando il Log QSO emette acceptQSO, il Monitor Hunter puo' passare al CQ successivo.
+# FT8 Hunter 1.0.13: quando il Log QSO emette acceptQSO, il Monitor Hunter puo' passare al CQ successivo.
 Replace-Required "widgets/mainwindow.cpp" @'
   connect (m_logDlg.data (), &LogQSO::acceptQSO, this, &MainWindow::acceptQSO);
 '@ @'
@@ -835,7 +835,7 @@ Replace-Required "widgets/mainwindow.cpp" @'
 Write-Host "Applied FT8 Hunter $HunterVersion Monitor Hunter log-completion hook."
 
 
-# FT8 Hunter 1.0.12: osserva i decode dopo i filtri.
+# FT8 Hunter 1.0.13: osserva i decode dopo i filtri.
 # Un CQ entra nella coda solo se e' realmente visibile e il suo DXCC non risulta lavorato sulla banda.
 Replace-Required "widgets/mainwindow.cpp" @'
         // show distance and bearing
@@ -881,7 +881,7 @@ Replace-Required "widgets/mainwindow.cpp" @'
 Write-Host "Applied FT8 Hunter $HunterVersion Monitor Hunter decode queue."
 
 
-# FT8 Hunter 1.0.12: stato temporaneo Hold Tx Freq usato dal Monitor Hunter.
+# FT8 Hunter 1.0.13: stato temporaneo Hold Tx Freq usato dal Monitor Hunter.
 Replace-Required "widgets/mainwindow.h" @'
   QScopedPointer<WideGraph> m_wideGraph;
   QScopedPointer<EchoGraph> m_echoGraph;
@@ -896,7 +896,7 @@ Replace-Required "widgets/mainwindow.h" @'
 Write-Host "Applied FT8 Hunter $HunterVersion Monitor Hunter Hold-TX state."
 
 
-# FT8 Hunter 1.0.12: usa lo spettro reale del Grafico Ampio per trovare uno slot TX quieto.
+# FT8 Hunter 1.0.13: usa lo spettro reale del Grafico Ampio per trovare uno slot TX quieto.
 Replace-Required "widgets/widegraph.h" @'
   void   setTxFreq(int n);
   void   setMode(QString mode);
@@ -1020,7 +1020,7 @@ void WideGraph::setMode(QString mode)                              //setMode
 Write-Host "Applied FT8 Hunter $HunterVersion waterfall-based automatic TX slot selection."
 
 
-# FT8 Hunter 1.0.12: watchdog QSO condiviso tra Monitor Hunter e DXFun.
+# FT8 Hunter 1.0.13: watchdog QSO condiviso tra Monitor Hunter e DXFun.
 Copy-Item "wsjtx-hunter/common/HunterQsoWatchdog.hpp" (Join-Path $hunterDir "HunterQsoWatchdog.hpp") -Force
 
 # Il sorgente di controllo usa ../common; nel tree WSJT-X i file Hunter sono appiattiti nella stessa cartella.
@@ -1239,3 +1239,312 @@ Replace-Required "widgets/mainwindow.cpp" @'
 '@
 
 Write-Host "Applied FT8 Hunter $HunterVersion shared QSO watchdog: busy-pause, 8-call limit and 4-TX no-progress limit."
+
+
+# FT8 Hunter 1.0.13: Band Hunter + QSY cluster esatta con split riallineato.
+Copy-Item "wsjtx-hunter/band/BandHunterPanel.hpp" (Join-Path $hunterDir "BandHunterPanel.hpp") -Force
+Copy-Item "wsjtx-hunter/band/BandHunterPanel.cpp" (Join-Path $hunterDir "BandHunterPanel.cpp") -Force
+
+Replace-Required "CMakeLists.txt" @'
+  FT8Hunter/DxFunClusterPanel.cpp
+  FT8Hunter/MonitorHunterPanel.cpp
+  Configuration.cpp
+'@ @'
+  FT8Hunter/DxFunClusterPanel.cpp
+  FT8Hunter/MonitorHunterPanel.cpp
+  FT8Hunter/BandHunterPanel.cpp
+  Configuration.cpp
+'@
+
+Replace-Required "widgets/mainwindow.cpp" @'
+#include "FT8Hunter/DxFunClusterPanel.hpp"
+#include "FT8Hunter/MonitorHunterPanel.hpp"
+'@ @'
+#include "FT8Hunter/DxFunClusterPanel.hpp"
+#include "FT8Hunter/MonitorHunterPanel.hpp"
+#include "FT8Hunter/BandHunterPanel.hpp"
+'@
+
+Replace-Required "widgets/mainwindow.cpp" @'
+DxFunClusterPanel * g_dxFunPanel = nullptr;
+MonitorHunterPanel * g_monitorHunterPanel = nullptr;
+'@ @'
+DxFunClusterPanel * g_dxFunPanel = nullptr;
+MonitorHunterPanel * g_monitorHunterPanel = nullptr;
+BandHunterPanel * g_bandHunterPanel = nullptr;
+'@
+
+# Se il commento dello spot dichiara esplicitamente FT8/FT4, la frequenza del
+# cluster diventa una vera QRG di dial (caso tipico DXpedition/special event).
+# Senza modo esplicito resta la logica storica basata sulla vicinanza alle
+# frequenze FT8/FT4 configurate.
+Replace-Required "widgets/mainwindow.cpp" @'
+  auto evaluateDxFunSpot = [this] (QString const& call, quint64 spotHz) -> DxFunEvaluation {
+      DxFunEvaluation out;
+      out.spotHz = spotHz;
+
+      qint64 bestDistance = std::numeric_limits<qint64>::max ();
+      auto const region = m_config.region ();
+      for (auto const& item : m_config.frequencies ()->frequency_list ())
+        {
+          if (item.mode_ != Modes::FT8 && item.mode_ != Modes::FT4) continue;
+          if (item.region_ != IARURegions::ALL && item.region_ != region) continue;
+
+          auto const band = m_config.bands ()->find (item.frequency_);
+          static QStringList const hunterBands {
+            QStringLiteral ("80m"), QStringLiteral ("60m"), QStringLiteral ("40m"),
+            QStringLiteral ("30m"), QStringLiteral ("20m"), QStringLiteral ("17m"),
+            QStringLiteral ("15m"), QStringLiteral ("12m"), QStringLiteral ("10m")};
+          if (!hunterBands.contains (band)) continue;
+
+          auto const offset = static_cast<qint64> (spotHz) - static_cast<qint64> (item.frequency_);
+          // Gli spot cluster riportano normalmente la frequenza RF del segnale:
+          // accetta il dial FT8/FT4 e la finestra audio fino a 5 kHz.
+          if (offset < -150 || offset > 5000) continue;
+
+          auto distance = offset < 0 ? -offset : offset;
+          if (item.region_ == region && distance > 0) --distance;
+          if (distance >= bestDistance) continue;
+
+          bestDistance = distance;
+          out.digital = true;
+          out.mode = QString::fromLatin1 (Modes::name (item.mode_));
+          out.dialHz = item.frequency_;
+          out.offsetHz = static_cast<int> (offset);
+          out.band = band;
+        }
+
+      if (!out.digital || out.band.isEmpty ()) return out;
+'@ @'
+  auto evaluateDxFunSpot =
+    [this] (QString const& call, quint64 spotHz, QString const& comment) -> DxFunEvaluation {
+      DxFunEvaluation out;
+      out.spotHz = spotHz;
+
+      static QStringList const hunterBands {
+        QStringLiteral ("80m"), QStringLiteral ("60m"), QStringLiteral ("40m"),
+        QStringLiteral ("30m"), QStringLiteral ("20m"), QStringLiteral ("17m"),
+        QStringLiteral ("15m"), QStringLiteral ("12m"), QStringLiteral ("10m")};
+
+      auto const spotBand = m_config.bands ()->find (spotHz);
+      if (!hunterBands.contains (spotBand)) return out;
+
+      auto const note = comment.toUpper ();
+      QString explicitMode;
+      if (note.contains (QRegularExpression {QStringLiteral ("(^|[^A-Z0-9])FT[ -]?8([^A-Z0-9]|$)"),
+                                             QRegularExpression::CaseInsensitiveOption}))
+        explicitMode = QStringLiteral ("FT8");
+      else if (note.contains (QRegularExpression {QStringLiteral ("(^|[^A-Z0-9])FT[ -]?4([^A-Z0-9]|$)"),
+                                                  QRegularExpression::CaseInsensitiveOption}))
+        explicitMode = QStringLiteral ("FT4");
+
+      if (!explicitMode.isEmpty ())
+        {
+          out.digital = true;
+          out.mode = explicitMode;
+          out.band = spotBand;
+          out.dialHz = spotHz;
+          out.offsetHz = 1500;
+          out.exactSpotDial = true;
+        }
+      else
+        {
+          qint64 bestDistance = std::numeric_limits<qint64>::max ();
+          auto const region = m_config.region ();
+          for (auto const& item : m_config.frequencies ()->frequency_list ())
+            {
+              if (item.mode_ != Modes::FT8 && item.mode_ != Modes::FT4) continue;
+              if (item.region_ != IARURegions::ALL && item.region_ != region) continue;
+
+              auto const band = m_config.bands ()->find (item.frequency_);
+              if (!hunterBands.contains (band)) continue;
+
+              auto const offset =
+                static_cast<qint64> (spotHz) - static_cast<qint64> (item.frequency_);
+              if (offset < -150 || offset > 5000) continue;
+
+              auto distance = offset < 0 ? -offset : offset;
+              if (item.region_ == region && distance > 0) --distance;
+              if (distance >= bestDistance) continue;
+
+              bestDistance = distance;
+              out.digital = true;
+              out.mode = QString::fromLatin1 (Modes::name (item.mode_));
+              out.dialHz = item.frequency_;
+              out.offsetHz = static_cast<int> (offset);
+              out.band = band;
+              out.exactSpotDial = false;
+            }
+        }
+
+      if (!out.digital || out.band.isEmpty ()) return out;
+'@
+
+# Il dial richiesto dal cluster diventa la base completa RX/TX. setRig()
+# riallinea m_freqNominal e m_freqTxNominal; setXIT() ricrea quindi lo split
+# sulla nuova QRG e non sulla precedente frequenza standard.
+Replace-Required "widgets/mainwindow.cpp" @'
+  auto tuneDxFunSpot = [this] (DxFunTuneRequest const& request) -> bool {
+      // Non interrompere una trasmissione o una sequenza Auto in corso.
+      if (m_transmitting || m_tune || m_auto) return false;
+      if (g_monitorHunterPanel && g_monitorHunterPanel->huntActive ()) return false;
+      if (request.mode != QStringLiteral ("FT8") && request.mode != QStringLiteral ("FT4")) return false;
+
+      ui->pbBandHopping->setChecked (false);
+      if (request.mode == QStringLiteral ("FT8") && m_mode != QStringLiteral ("FT8"))
+        on_actionFT8_triggered ();
+      else if (request.mode == QStringLiteral ("FT4") && m_mode != QStringLiteral ("FT4"))
+        on_actionFT4_triggered ();
+
+      QTimer::singleShot (120, this, [this, request] {
+          auto const row = m_config.frequencies ()->best_working_frequency (request.dialHz);
+          if (row < 0)
+            {
+              showStatusMessage (tr ("DXFun: frequenza %1 %2 non disponibile")
+                                 .arg (request.band).arg (request.mode));
+              return;
+            }
+
+          ui->bandComboBox->setCurrentIndex (row);
+          on_bandComboBox_activated (row);
+
+          auto offset = request.offsetHz;
+          if (offset < ui->RxFreqSpinBox->minimum ()) offset = ui->RxFreqSpinBox->minimum ();
+          if (offset > ui->RxFreqSpinBox->maximum ()) offset = ui->RxFreqSpinBox->maximum ();
+          ui->RxFreqSpinBox->setValue (offset);
+
+          showStatusMessage (
+            tr ("DXFun -> %1 %2 | %3 | %4")
+              .arg (request.band).arg (request.mode).arg (request.callsign).arg (request.status));
+        });
+      return true;
+    };
+'@ @'
+  auto tuneDxFunSpot = [this] (DxFunTuneRequest const& request) -> bool {
+      if (m_transmitting || m_tune || m_auto) return false;
+      if (g_monitorHunterPanel && g_monitorHunterPanel->huntActive ()) return false;
+      if (request.mode != QStringLiteral ("FT8") && request.mode != QStringLiteral ("FT4")) return false;
+
+      ui->pbBandHopping->setChecked (false);
+      if (request.mode == QStringLiteral ("FT8") && m_mode != QStringLiteral ("FT8"))
+        on_actionFT8_triggered ();
+      else if (request.mode == QStringLiteral ("FT4") && m_mode != QStringLiteral ("FT4"))
+        on_actionFT4_triggered ();
+
+      auto const row = m_config.frequencies ()->best_working_frequency (request.dialHz);
+      if (row < 0)
+        {
+          showStatusMessage (tr ("DXFun: frequenza %1 %2 non disponibile")
+                             .arg (request.band).arg (request.mode));
+          return false;
+        }
+
+      if (g_bandHunterPanel && g_bandHunterPanel->active ())
+        g_bandHunterPanel->pauseForExternalHunter ();
+
+      QTimer::singleShot (120, this, [this, request, row] {
+          ui->bandComboBox->setCurrentIndex (row);
+
+          m_bandEdited = true;
+          band_changed (request.dialHz);
+          m_wideGraph->setRxBand (request.band);
+
+          auto offset = request.offsetHz;
+          if (offset < ui->RxFreqSpinBox->minimum ()) offset = ui->RxFreqSpinBox->minimum ();
+          if (offset > ui->RxFreqSpinBox->maximum ()) offset = ui->RxFreqSpinBox->maximum ();
+          ui->RxFreqSpinBox->setValue (offset);
+
+          setRig (request.dialHz);
+          setXIT (ui->TxFreqSpinBox->value (), request.dialHz);
+          monitor (true);
+
+          showStatusMessage (
+            tr ("DXFun -> %1 %2 | %3 | %4 | %5")
+              .arg (request.band)
+              .arg (request.mode)
+              .arg (request.callsign)
+              .arg (request.exactSpotDial ? tr ("QSY SPOT ESATTA") : tr ("QSY STANDARD"))
+              .arg (Radio::pretty_frequency_MHz_string (request.dialHz)));
+        });
+      return true;
+    };
+'@
+
+# Band Hunter usa Monitor Hunter come motore CQ. Il timer avanza soltanto
+# durante l'ascolto effettivo; QSO e DX OCCUPATO lo mettono in pausa.
+Replace-Required "widgets/mainwindow.cpp" @'
+  auto * monitorHunterAction = hunterMenu->addAction (tr ("Monitor Hunter..."));
+  connect (monitorHunterAction, &QAction::triggered, [monitorHunterPanel] {
+      monitorHunterPanel->openWindow ();
+    });
+
+  // FT8 Hunter: aggiorna automaticamente Worked Before da Log4OM.
+'@ @'
+  auto * monitorHunterAction = hunterMenu->addAction (tr ("Monitor Hunter..."));
+  connect (monitorHunterAction, &QAction::triggered, [monitorHunterPanel] {
+      monitorHunterPanel->openWindow ();
+    });
+
+  auto tuneBandHunterBand = [this] (QString const& band) -> int {
+      if (m_transmitting || m_tune || m_auto) return BandHunterPanel::QsyBusy;
+      if (g_dxFunPanel && g_dxFunPanel->huntActive ()) return BandHunterPanel::QsyBusy;
+
+      if (m_mode != QStringLiteral ("FT8"))
+        on_actionFT8_triggered ();
+
+      quint64 preferred = 0;
+      if (band == QStringLiteral ("80m")) preferred = 3573000;
+      else if (band == QStringLiteral ("60m")) preferred = 5357000;
+      else if (band == QStringLiteral ("40m")) preferred = 7074000;
+      else if (band == QStringLiteral ("30m")) preferred = 10136000;
+      else if (band == QStringLiteral ("20m")) preferred = 14074000;
+      else if (band == QStringLiteral ("17m")) preferred = 18100000;
+      else if (band == QStringLiteral ("15m")) preferred = 21074000;
+      else if (band == QStringLiteral ("12m")) preferred = 24915000;
+      else if (band == QStringLiteral ("10m")) preferred = 28074000;
+      if (!preferred) return BandHunterPanel::QsyUnavailable;
+
+      auto const row = m_config.frequencies ()->best_working_frequency (preferred);
+      if (row < 0) return BandHunterPanel::QsyUnavailable;
+
+      auto const& frequencies = m_config.frequencies ();
+      auto const sourceIndex =
+        frequencies->mapToSource (
+          frequencies->index (row, FrequencyList_v2_101::frequency_column));
+      if (!sourceIndex.isValid ()) return BandHunterPanel::QsyUnavailable;
+
+      auto const dial = frequencies->frequency_list ()[sourceIndex.row ()].frequency_;
+      if (m_config.bands ()->find (dial) != band)
+        return BandHunterPanel::QsyUnavailable;
+
+      ui->pbBandHopping->setChecked (false);
+      ui->bandComboBox->setCurrentIndex (row);
+      on_bandComboBox_activated (row);
+      ui->RxFreqSpinBox->setValue (1500);
+      monitor (true);
+
+      showStatusMessage (
+        tr ("Band Hunter -> %1 FT8 | %2")
+          .arg (band)
+          .arg (Radio::pretty_frequency_MHz_string (dial)));
+      return BandHunterPanel::QsySuccess;
+    };
+
+  auto * bandHunterPanel = new BandHunterPanel {
+    tuneBandHunterBand,
+    [monitorHunterPanel] { return monitorHunterPanel->automaticEnabled (); },
+    [monitorHunterPanel] (bool on) { return monitorHunterPanel->setAutomaticEnabled (on); },
+    [monitorHunterPanel] { return monitorHunterPanel->huntActive (); },
+    [] { return g_dxFunPanel && g_dxFunPanel->huntActive (); },
+    m_settings, this};
+  g_bandHunterPanel = bandHunterPanel;
+
+  auto * bandHunterAction = hunterMenu->addAction (tr ("Band Hunter..."));
+  connect (bandHunterAction, &QAction::triggered, [bandHunterPanel] {
+      bandHunterPanel->openWindow ();
+    });
+
+  // FT8 Hunter: aggiorna automaticamente Worked Before da Log4OM.
+'@
+
+Write-Host "Applied FT8 Hunter $HunterVersion exact DXFun QSY/split + automatic Band Hunter."
