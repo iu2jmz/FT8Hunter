@@ -6,6 +6,7 @@
 #include <QString>
 #include <functional>
 
+class QByteArray;
 class QCheckBox;
 class QCloseEvent;
 class QLabel;
@@ -14,6 +15,7 @@ class QSettings;
 class QSpinBox;
 class QTableWidget;
 class QTimer;
+class QVariant;
 class PskReporterMqttClient;
 
 struct PskReporterReport
