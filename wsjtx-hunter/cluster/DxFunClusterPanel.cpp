@@ -480,7 +480,7 @@ DxFunClusterPanel::DecodeAction DxFunClusterPanel::observeDecode (
   if (!autoQsyButton_->isChecked ()) return DecodeAction::None;
   if (huntState_ == HuntState::Idle) return DecodeAction::None;
 
-  auto const event = watchdog_.observe (deCall, cqCall, cleanText);
+  auto const event = watchdog_.observe (firstCall, deCall, cqCall, cleanText);
   if (event == HunterQsoWatchdog::DecodeEvent::None) return DecodeAction::None;
 
   auto const target = active_.request.callsign.trimmed ().toUpper ();
