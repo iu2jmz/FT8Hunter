@@ -255,7 +255,7 @@ void DxFunClusterPanel::handleSpot (QString const& callsign, quint64 frequencyHz
 {
   ++allSpots_;
 
-  auto const evaluation = evaluator_ ? evaluator_ (callsign, frequencyHz) : DxFunEvaluation {};
+  auto const evaluation = evaluator_ ? evaluator_ (callsign, frequencyHz, comment) : DxFunEvaluation {};
   if (!evaluation.digital)
     {
       updateCounters ();
@@ -282,6 +282,7 @@ void DxFunClusterPanel::handleSpot (QString const& callsign, quint64 frequencyHz
   candidate.request.spotHz = evaluation.spotHz;
   candidate.request.dialHz = evaluation.dialHz;
   candidate.request.offsetHz = evaluation.offsetHz;
+  candidate.request.exactSpotDial = evaluation.exactSpotDial;
   candidate.request.status = evaluation.newDxcc
     ? QStringLiteral ("NEW DXCC")
     : evaluation.newBand
@@ -331,7 +332,8 @@ void DxFunClusterPanel::appendSpot (Candidate const& candidate, QString const& c
   utc->setData (SpotHzRole, QVariant::fromValue<qulonglong> (candidate.request.spotHz));
   utc->setData (DialHzRole, QVariant::fromValue<qulonglong> (candidate.request.dialHz));
   utc->setData (OffsetRole, candidate.request.offsetHz);
-  utc->setData (StatusRole, candidate.request.status);
+  utc->setData (StatusRole, candidate.request.status
+    + (candidate.request.exactSpotDial ? QStringLiteral (" | QSY SPOT") : QStringLiteral (" | QSY STANDARD")));
 
   if (relevant)
     {
@@ -673,6 +675,7 @@ void DxFunClusterPanel::tuneSelected ()
   request.dialHz = item->data (DialHzRole).toULongLong ();
   request.offsetHz = item->data (OffsetRole).toInt ();
   request.status = item->data (StatusRole).toString ();
+  request.exactSpotDial = request.status.contains (QStringLiteral ("QSY SPOT"));
 
   if (tuner_ && tuner_ (request))
     statusLabel_->setText (
