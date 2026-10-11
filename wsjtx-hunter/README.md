@@ -94,3 +94,18 @@ Nuova finestra separata **Tools > FT8 Hunter > Monitor Hunter...**.
 - dopo 8 chiamate senza risposta, quel nominativo entra in pausa per 5 minuti per evitare cicli infiniti e viene provato il successivo CQ recente
 - il Monitor Hunter non prende il controllo se radio, Auto, Tune o DXFun Hunter sono gia' impegnati
 - chiudere la finestra Monitor Hunter disattiva l'automazione, evitando trasmissioni automatiche nascoste
+
+
+## v1.0.11 - Monitor Hunter visuale e TX libera dal waterfall
+
+- la finestra separata **Monitor Hunter** mostra ora uno stato grande e immediato: **ASCOLTO / CHIAMATA / QSO**
+- tre indicatori dedicati mostrano **TARGET/RX**, **TX SLOT BLOCCATA** e progresso **x/8 + RF Power**
+- nuova opzione **Scegli automaticamente una frequenza TX libera**
+- la scelta automatica legge direttamente lo spettro che alimenta il **Grafico Ampio**
+- viene mantenuta una media recente dell'energia del waterfall per evitare decisioni basate su un singolo istante
+- per FT8/FT4 viene cercata la finestra a energia piu' bassa con margine di guardia, evitando i bordi del passabanda e almeno +/-100 Hz attorno alla stazione DX
+- la **RX segue la stazione chiamata**, mentre la **TX resta bloccata** sullo slot scelto per tutta la sequenza
+- il blocco usa il comportamento nativo **Hold Tx Freq** di WSJT-X e viene rimosso soltanto a fine QSO, dopo il logging, oppure in caso di abbandono
+- lo stato Hold Tx Freq e la frequenza TX presenti prima dell'Hunter vengono ripristinati al termine del QSO
+- se la selezione automatica e' disattivata, viene bloccata per il QSO la frequenza TX scelta manualmente dall'operatore
+- restano invariati gli 8 tentativi con rampa **50, 55, 60, 65, 70, 75, 80, 85%**, con congelamento della potenza appena il DX risponde

@@ -2,6 +2,7 @@
 
 #include <QCheckBox>
 #include <QCloseEvent>
+#include <QFont>
 #include <QHeaderView>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -21,17 +22,22 @@ namespace
 MonitorHunterPanel::MonitorHunterPanel (QString const& myCall,
                                         Starter starter,
                                         AbortHandler abortHandler,
+                                        ReleaseHandler releaseHandler,
                                         QSettings * settings,
                                         QWidget * parent)
   : QDialog {parent, Qt::Window | Qt::WindowTitleHint | Qt::WindowSystemMenuHint | Qt::WindowCloseButtonHint}
   , myCall_ {myCall.trimmed ().toUpper ()}
   , starter_ {std::move (starter)}
   , abortHandler_ {std::move (abortHandler)}
+  , releaseHandler_ {std::move (releaseHandler)}
   , settings_ {settings}
   , autoCheck_ {new QCheckBox {tr ("Attiva Monitor Hunter automatico"), this}}
+  , autoTxSlotCheck_ {new QCheckBox {tr ("Scegli automaticamente una frequenza TX libera"), this}}
   , filterLabel_ {new QLabel {this}}
-  , stateLabel_ {new QLabel {tr ("STATO: OFF"), this}}
-  , activeLabel_ {new QLabel {tr ("Nessun QSO Hunter attivo"), this}}
+  , stateLabel_ {new QLabel {tr ("OFF"), this}}
+  , targetLabel_ {new QLabel {tr ("TARGET: --"), this}}
+  , txSlotLabel_ {new QLabel {tr ("TX SLOT: --"), this}}
+  , progressLabel_ {new QLabel {tr ("HUNTER: --"), this}}
   , queueLabel_ {new QLabel {this}}
   , table_ {new QTableWidget {0, 8, this}}
   , stopButton_ {new QPushButton {tr ("Ferma QSO Hunter"), this}}
@@ -40,12 +46,32 @@ MonitorHunterPanel::MonitorHunterPanel (QString const& myCall,
 {
   setWindowTitle (tr ("FT8 Hunter - Monitor Hunter"));
   setModal (false);
-  setMinimumSize (860, 420);
+  setMinimumSize (930, 500);
   setAttribute (Qt::WA_DeleteOnClose, false);
 
   autoCheck_->setEnabled (false);
   autoCheck_->setToolTip (
     tr ("Disponibile solo con il filtro 'Escludi country/DXCC gia lavorati sulla banda corrente' attivo e BP disattivato."));
+
+  autoTxSlotCheck_->setChecked (true);
+  autoTxSlotCheck_->setToolTip (
+    tr ("Analizza lo spettro recente del Grafico Ampio, sceglie una zona quieta e blocca la TX li' per tutto il QSO."));
+
+  stateLabel_->setAlignment (Qt::AlignCenter);
+  stateLabel_->setMinimumHeight (54);
+  QFont stateFont = stateLabel_->font ();
+  stateFont.setBold (true);
+  stateFont.setPointSize (14);
+  stateLabel_->setFont (stateFont);
+
+  for (auto * label : {targetLabel_, txSlotLabel_, progressLabel_})
+    {
+      QFont f = label->font ();
+      f.setBold (true);
+      f.setPointSize (10);
+      label->setFont (f);
+      label->setMinimumHeight (28);
+    }
 
   table_->setHorizontalHeaderLabels (
     {tr ("UTC"), tr ("DX"), tr ("DXCC"), tr ("Banda"), tr ("Modo"), tr ("Audio Hz"), tr ("SNR"), tr ("Stato")});
@@ -61,16 +87,23 @@ MonitorHunterPanel::MonitorHunterPanel (QString const& myCall,
 
   auto * top = new QHBoxLayout;
   top->addWidget (autoCheck_);
-  top->addSpacing (15);
+  top->addSpacing (12);
+  top->addWidget (autoTxSlotCheck_);
+  top->addSpacing (12);
   top->addWidget (filterLabel_);
   top->addStretch ();
   top->addWidget (stopButton_);
   top->addWidget (clearButton_);
 
+  auto * qsoInfo = new QHBoxLayout;
+  qsoInfo->addWidget (targetLabel_, 3);
+  qsoInfo->addWidget (txSlotLabel_, 2);
+  qsoInfo->addWidget (progressLabel_, 2);
+
   auto * root = new QVBoxLayout;
   root->addLayout (top);
   root->addWidget (stateLabel_);
-  root->addWidget (activeLabel_);
+  root->addLayout (qsoInfo);
   root->addWidget (queueLabel_);
   root->addWidget (table_);
   setLayout (root);
@@ -81,7 +114,7 @@ MonitorHunterPanel::MonitorHunterPanel (QString const& myCall,
   connect (autoCheck_, &QCheckBox::toggled, this, [this] (bool checked) {
       if (checked)
         {
-          stateLabel_->setText (tr ("STATO: IN ASCOLTO - attendo il primo CQ valido"));
+          showListeningState (tr ("attendo il primo CQ valido"));
           QTimer::singleShot (0, this, [this] { attemptStart (); });
         }
       else
@@ -89,11 +122,20 @@ MonitorHunterPanel::MonitorHunterPanel (QString const& myCall,
           retryTimer_->stop ();
           queue_.clear ();
           if (state_ != HuntState::Idle)
-            resetActive (tr ("STATO: OFF"), true, false);
-          else
-            stateLabel_->setText (tr ("STATO: OFF"));
+            resetActive (tr ("automazione disattivata"), true, false);
+          showOffState (filterActive_ ? tr ("pronto") : tr ("attivare il filtro DXCC sulla banda"));
         }
       updateSummary ();
+    });
+
+  connect (autoTxSlotCheck_, &QCheckBox::toggled, this, [this] (bool checked) {
+      if (settings_)
+        {
+          settings_->beginGroup (QStringLiteral ("FT8HunterMonitor"));
+          settings_->setValue (QStringLiteral ("autoTxSlot"), checked);
+          settings_->endGroup ();
+          settings_->sync ();
+        }
     });
 
   connect (stopButton_, &QPushButton::clicked, this, [this] {
@@ -111,11 +153,69 @@ MonitorHunterPanel::MonitorHunterPanel (QString const& myCall,
     {
       settings_->beginGroup (QStringLiteral ("FT8HunterMonitor"));
       restoreGeometry (settings_->value (QStringLiteral ("geometry"), saveGeometry ()).toByteArray ());
+      autoTxSlotCheck_->setChecked (settings_->value (QStringLiteral ("autoTxSlot"), true).toBool ());
       settings_->endGroup ();
     }
 
   setFilterActive (false);
   updateSummary ();
+}
+
+void MonitorHunterPanel::showOffState (QString const& detail)
+{
+  stateLabel_->setText (tr ("OFF") + (detail.isEmpty () ? QString {} : QStringLiteral ("  -  ") + detail));
+  stateLabel_->setStyleSheet (
+    QStringLiteral ("QLabel { background:#606060; color:white; border:1px solid #404040; padding:8px; }"));
+}
+
+void MonitorHunterPanel::showListeningState (QString const& detail)
+{
+  stateLabel_->setText (tr ("ASCOLTO") + (detail.isEmpty () ? QString {} : QStringLiteral ("  -  ") + detail));
+  stateLabel_->setStyleSheet (
+    QStringLiteral ("QLabel { background:#55c271; color:black; border:1px solid #2f8f49; padding:8px; }"));
+}
+
+void MonitorHunterPanel::showCallingState (QString const& detail)
+{
+  stateLabel_->setText (tr ("CHIAMATA") + (detail.isEmpty () ? QString {} : QStringLiteral ("  -  ") + detail));
+  stateLabel_->setStyleSheet (
+    QStringLiteral ("QLabel { background:#ffd54f; color:black; border:1px solid #b7950b; padding:8px; }"));
+}
+
+void MonitorHunterPanel::showQsoState (QString const& detail)
+{
+  stateLabel_->setText (tr ("QSO") + (detail.isEmpty () ? QString {} : QStringLiteral ("  -  ") + detail));
+  stateLabel_->setStyleSheet (
+    QStringLiteral ("QLabel { background:#e95b54; color:white; border:1px solid #a93226; padding:8px; }"));
+}
+
+void MonitorHunterPanel::updateActiveLabels ()
+{
+  if (state_ == HuntState::Idle || active_.callsign.isEmpty ())
+    {
+      targetLabel_->setText (tr ("TARGET: --"));
+      txSlotLabel_->setText (tr ("TX SLOT: --"));
+      progressLabel_->setText (tr ("HUNTER: --"));
+      return;
+    }
+
+  targetLabel_->setText (
+    tr ("TARGET: %1 | %2 | RX %3 Hz")
+      .arg (active_.callsign)
+      .arg (active_.country.isEmpty () ? active_.band : active_.country + QStringLiteral (" | ") + active_.band)
+      .arg (active_.audioOffset));
+
+  txSlotLabel_->setText (
+    lockedTxOffset_ >= 0
+      ? tr ("TX SLOT: %1 Hz - BLOCCATA%2")
+          .arg (lockedTxOffset_)
+          .arg (lockedTxWasAutomatic_ ? tr (" (AUTO WATERFALL)") : tr (" (MANUALE)"))
+      : tr ("TX SLOT: --"));
+
+  progressLabel_->setText (
+    answered_
+      ? tr ("HUNTER: risposta | RF %1%%").arg (lastPowerPercent_)
+      : tr ("HUNTER: %1/8 | RF %2%%").arg (txCycles_).arg (lastPowerPercent_));
 }
 
 void MonitorHunterPanel::openWindow ()
@@ -128,20 +228,21 @@ void MonitorHunterPanel::openWindow ()
 void MonitorHunterPanel::setFilterActive (bool active)
 {
   filterActive_ = active;
-  if (active)
+  filterLabel_->setText (
+    active ? tr ("Filtro DXCC banda: ATTIVO") : tr ("Filtro DXCC banda: NON ATTIVO"));
+
+  autoCheck_->setEnabled (active);
+  autoTxSlotCheck_->setEnabled (active && state_ == HuntState::Idle);
+
+  if (!active)
     {
-      filterLabel_->setText (tr ("Filtro DXCC banda: ATTIVO"));
-      autoCheck_->setEnabled (true);
-      if (!autoCheck_->isChecked ())
-        stateLabel_->setText (tr ("STATO: OFF - pronto"));
-    }
-  else
-    {
-      filterLabel_->setText (tr ("Filtro DXCC banda: NON ATTIVO"));
       if (autoCheck_->isChecked ())
         autoCheck_->setChecked (false);
-      autoCheck_->setEnabled (false);
-      stateLabel_->setText (tr ("STATO: OFF - attivare il filtro DXCC sulla banda"));
+      showOffState (tr ("attivare il filtro DXCC sulla banda"));
+    }
+  else if (!autoCheck_->isChecked ())
+    {
+      showOffState (tr ("pronto"));
     }
   updateSummary ();
 }
@@ -177,7 +278,7 @@ void MonitorHunterPanel::enqueueCandidate (MonitorHunterCandidate const& candida
   auto const now = QDateTime::currentDateTimeUtc ();
   if (inCooldown (call, now)) return;
 
-  // Mantiene l'ordine del primo CQ visto, ma aggiorna i dati se lo stesso CQ viene ridichiarato.
+  // Il primo CQ valido mantiene la priorita'. Se viene ridichiarato, aggiorna il timestamp.
   for (int i = 0; i < queue_.size (); ++i)
     {
       if (queue_.at (i).callsign.trimmed ().toUpper () == call)
@@ -200,18 +301,22 @@ void MonitorHunterPanel::attemptStart ()
   pruneQueue ();
   if (queue_.isEmpty ())
     {
-      stateLabel_->setText (tr ("STATO: IN ASCOLTO - nessun CQ valido in coda"));
+      showListeningState (tr ("nessun CQ valido in coda"));
       updateSummary ();
       return;
     }
 
   auto candidate = queue_.takeFirst ();
-  if (!starter_ || !starter_ (candidate))
+  auto const automaticTx = autoTxSlotCheck_->isChecked ();
+  auto const txOffset = starter_ ? starter_ (candidate, automaticTx) : StartUnavailable;
+
+  if (txOffset < 0)
     {
-      // Radio/Auto/DXFun occupati: conserva il primo candidato finche' resta recente.
       queue_.prepend (candidate);
-      stateLabel_->setText (
-        tr ("STATO: ATTESA - radio/Auto/DXFun occupati; candidato %1").arg (candidate.callsign));
+      showListeningState (
+        automaticTx
+          ? tr ("attesa: radio/Auto/DXFun occupati oppure spettro non ancora pronto")
+          : tr ("attesa: radio/Auto/DXFun occupati"));
       updateSummary ();
       retryTimer_->start (1500);
       return;
@@ -222,15 +327,14 @@ void MonitorHunterPanel::attemptStart ()
   answered_ = false;
   txCycles_ = 0;
   lastPowerPercent_ = 50;
+  lockedTxOffset_ = txOffset;
+  lockedTxWasAutomatic_ = automaticTx;
   stopButton_->setEnabled (true);
-  stateLabel_->setText (tr ("STATO: CHIAMATA"));
-  activeLabel_->setText (
-    tr ("%1  %2  %3  |  audio %4 Hz  |  potenza iniziale 50%%")
-      .arg (active_.callsign)
-      .arg (active_.country)
-      .arg (active_.band)
-      .arg (active_.audioOffset));
-  appendEvent (active_, tr ("CHIAMO - 0/8"));
+  autoTxSlotCheck_->setEnabled (false);
+
+  showCallingState (tr ("preparo %1 | 0/8").arg (active_.callsign));
+  updateActiveLabels ();
+  appendEvent (active_, tr ("CHIAMO - 0/8 | TX %1 Hz").arg (lockedTxOffset_));
   updateSummary ();
 }
 
@@ -248,7 +352,7 @@ void MonitorHunterPanel::observeDecode (QString const& rawText,
 {
   auto const now = QDateTime::currentDateTimeUtc ();
 
-  // Durante un QSO Hunter continua a leggere tutti i decode, per riconoscere la risposta.
+  // Durante un QSO Hunter continua a leggere tutti i decode per riconoscere la risposta.
   if (state_ != HuntState::Idle)
     {
       auto const target = active_.callsign.trimmed ().toUpper ();
@@ -266,12 +370,9 @@ void MonitorHunterPanel::observeDecode (QString const& rawText,
             {
               answered_ = true;
               state_ = HuntState::Qso;
-              stateLabel_->setText (tr ("STATO: RISPOSTA RICEVUTA - Auto Seq completa il QSO"));
-              activeLabel_->setText (
-                tr ("%1 ha risposto - RF congelata al %2%% - attendo fine QSO e logging")
-                  .arg (target)
-                  .arg (lastPowerPercent_));
-              appendEvent (active_, tr ("RISPOSTA - QSO IN CORSO"));
+              showQsoState (tr ("%1 ha risposto - Auto Seq completa il QSO").arg (target));
+              updateActiveLabels ();
+              appendEvent (active_, tr ("RISPOSTA - RF BLOCCATA %1%%").arg (lastPowerPercent_));
             }
         }
     }
@@ -302,7 +403,6 @@ int MonitorHunterPanel::nextTxPowerPercent ()
 {
   if (!qsoActive ()) return -1;
 
-  // Dopo otto chiamate senza alcuna risposta la nona TX non deve partire.
   if (!answered_ && txCycles_ >= 8)
     return StopTransmission;
 
@@ -315,24 +415,20 @@ int MonitorHunterPanel::nextTxPowerPercent ()
 
   if (answered_)
     {
-      stateLabel_->setText (tr ("STATO: QSO IN CORSO"));
-      activeLabel_->setText (
-        tr ("%1 - risposta ricevuta - TX ciclo %2 - RF congelata %3%%")
-          .arg (active_.callsign)
-          .arg (txCycles_)
-          .arg (lastPowerPercent_));
+      showQsoState (tr ("%1 - Auto Seq").arg (active_.callsign));
     }
   else
     {
-      stateLabel_->setText (tr ("STATO: CHIAMATA %1/8").arg (txCycles_));
-      activeLabel_->setText (
-        tr ("%1 - TX ciclo %2/8 - RF Power %3%%")
-          .arg (active_.callsign)
+      showCallingState (tr ("%1 | %2/8").arg (active_.callsign).arg (txCycles_));
+      appendEvent (
+        active_,
+        tr ("TX %1/8 | RF %2%% | TX %3 Hz")
           .arg (txCycles_)
-          .arg (lastPowerPercent_));
-      appendEvent (active_, tr ("TX %1/8 - %2%%").arg (txCycles_).arg (lastPowerPercent_));
+          .arg (lastPowerPercent_)
+          .arg (lockedTxOffset_));
     }
 
+  updateActiveLabels ();
   return lastPowerPercent_;
 }
 
@@ -346,14 +442,19 @@ void MonitorHunterPanel::callingExhausted ()
     active_.callsign.trimmed ().toUpper (),
     QDateTime::currentDateTimeUtc ().addSecs (FailedCooldownSeconds));
 
+  if (releaseHandler_) releaseHandler_ ();
+
   active_ = MonitorHunterCandidate {};
   state_ = HuntState::Idle;
   answered_ = false;
   txCycles_ = 0;
   lastPowerPercent_ = 50;
+  lockedTxOffset_ = -1;
+  lockedTxWasAutomatic_ = false;
   stopButton_->setEnabled (false);
-  stateLabel_->setText (tr ("STATO: 8 chiamate senza risposta - cerco il prossimo CQ"));
-  activeLabel_->setText (tr ("Nessun QSO Hunter attivo"));
+  autoTxSlotCheck_->setEnabled (filterActive_);
+  updateActiveLabels ();
+  showListeningState (tr ("8 chiamate senza risposta - cerco il prossimo CQ"));
   updateSummary ();
   retryTimer_->start (500);
 }
@@ -365,14 +466,20 @@ void MonitorHunterPanel::qsoLogged (QString const& call)
 
   ++completedQsos_;
   appendEvent (active_, tr ("QSO LOGGATO"));
+
+  if (releaseHandler_) releaseHandler_ ();
+
   active_ = MonitorHunterCandidate {};
   state_ = HuntState::Idle;
   answered_ = false;
   txCycles_ = 0;
   lastPowerPercent_ = 50;
+  lockedTxOffset_ = -1;
+  lockedTxWasAutomatic_ = false;
   stopButton_->setEnabled (false);
-  stateLabel_->setText (tr ("STATO: QSO completato - cerco il prossimo CQ"));
-  activeLabel_->setText (tr ("Nessun QSO Hunter attivo"));
+  autoTxSlotCheck_->setEnabled (filterActive_);
+  updateActiveLabels ();
+  showListeningState (tr ("QSO completato - cerco il prossimo CQ"));
   updateSummary ();
   retryTimer_->start (500);
 }
@@ -380,25 +487,38 @@ void MonitorHunterPanel::qsoLogged (QString const& call)
 void MonitorHunterPanel::resetActive (QString const& status, bool abortRadio, bool cooldown)
 {
   retryTimer_->stop ();
-  if (state_ != HuntState::Idle && cooldown && !active_.callsign.isEmpty ())
+  auto const hadActive = state_ != HuntState::Idle;
+
+  if (hadActive && cooldown && !active_.callsign.isEmpty ())
     cooldownUntil_.insert (
       active_.callsign.trimmed ().toUpper (),
       QDateTime::currentDateTimeUtc ().addSecs (FailedCooldownSeconds));
 
-  if (abortRadio && abortHandler_) abortHandler_ ();
+  if (hadActive && abortRadio && abortHandler_) abortHandler_ ();
+  if (hadActive && releaseHandler_) releaseHandler_ ();
 
   active_ = MonitorHunterCandidate {};
   state_ = HuntState::Idle;
   answered_ = false;
   txCycles_ = 0;
   lastPowerPercent_ = 50;
+  lockedTxOffset_ = -1;
+  lockedTxWasAutomatic_ = false;
   stopButton_->setEnabled (false);
-  stateLabel_->setText (status);
-  activeLabel_->setText (tr ("Nessun QSO Hunter attivo"));
-  updateSummary ();
+  autoTxSlotCheck_->setEnabled (filterActive_);
+  updateActiveLabels ();
 
   if (autoCheck_->isChecked () && filterActive_)
-    retryTimer_->start (500);
+    {
+      showListeningState (status);
+      retryTimer_->start (500);
+    }
+  else
+    {
+      showOffState (status);
+    }
+
+  updateSummary ();
 }
 
 void MonitorHunterPanel::appendEvent (MonitorHunterCandidate const& candidate, QString const& state)
@@ -439,6 +559,7 @@ void MonitorHunterPanel::closeEvent (QCloseEvent * event)
     {
       settings_->beginGroup (QStringLiteral ("FT8HunterMonitor"));
       settings_->setValue (QStringLiteral ("geometry"), saveGeometry ());
+      settings_->setValue (QStringLiteral ("autoTxSlot"), autoTxSlotCheck_->isChecked ());
       settings_->endGroup ();
       settings_->sync ();
     }

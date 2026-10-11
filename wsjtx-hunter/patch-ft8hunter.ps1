@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory=$true)][string]$SourceDir,
-    [string]$HunterVersion = "1.0.10"
+    [string]$HunterVersion = "1.0.11"
 )
 
 $ErrorActionPreference = "Stop"
@@ -199,21 +199,50 @@ Replace-Required "widgets/mainwindow.cpp" @'
       dxFunPanel->openAndConnect ();
     });
 
-  // FT8 Hunter 1.0.10 - Monitor Hunter automatico: finestra separata.
-  auto startMonitorHunterQso = [this] (MonitorHunterCandidate const& request) -> bool {
-      if (m_transmitting || m_tune || m_auto) return false;
-      if (g_dxFunPanel && g_dxFunPanel->huntActive ()) return false;
-      if (request.mode != m_mode) return false;
-      if (request.mode != QStringLiteral ("FT8") && request.mode != QStringLiteral ("FT4")) return false;
+  // FT8 Hunter 1.0.11 - Monitor Hunter automatico: finestra separata.
+  // La RX segue il DX; la TX viene bloccata su uno slot indipendente per tutto il QSO.
+  auto startMonitorHunterQso =
+    [this] (MonitorHunterCandidate const& request, bool autoTxSlot) -> int {
+      if (m_transmitting || m_tune || m_auto) return MonitorHunterPanel::StartUnavailable;
+      if (g_dxFunPanel && g_dxFunPanel->huntActive ()) return MonitorHunterPanel::StartUnavailable;
+      if (request.mode != m_mode) return MonitorHunterPanel::StartUnavailable;
+      if (request.mode != QStringLiteral ("FT8") && request.mode != QStringLiteral ("FT4"))
+        return MonitorHunterPanel::StartUnavailable;
+
+      auto txOffset = ui->TxFreqSpinBox->value ();
+      if (autoTxSlot)
+        {
+          txOffset = m_wideGraph->bestQuietTxFrequency (request.audioOffset, request.mode);
+          if (txOffset < 0) return MonitorHunterPanel::StartUnavailable;
+        }
+
+      // Salva lo stato dell'operatore e impone Hold Tx Freq solo durante questo QSO Hunter.
+      m_monitorHunterHoldSaved = true;
+      m_monitorHunterPreviousHold = ui->cbHoldTxFreq->isChecked ();
+      m_monitorHunterPreviousTxFreq = ui->TxFreqSpinBox->value ();
+
+      ui->cbHoldTxFreq->setChecked (true);
+      HoldTxFreqStatus = true;
+      ui->TxFreqSpinBox->setValue (txOffset);
 
       DecodedText hunterDecode {request.rawText};
       tx_watchdog (false);
       m_bDoubleClicked = true;
       auto_tx_mode (true);
       processMessage (hunterDecode);
+
+      // processMessage puo' spostare la RX sul DX, ma la TX resta protetta da Hold Tx Freq.
       ui->dxCallEntry->setText (request.callsign);
       ui->RxFreqSpinBox->setValue (request.audioOffset);
-      return true;
+      ui->TxFreqSpinBox->setValue (txOffset);
+
+      showStatusMessage (
+        tr ("Monitor Hunter -> %1 | RX %2 Hz | TX bloccata %3 Hz%4")
+          .arg (request.callsign)
+          .arg (request.audioOffset)
+          .arg (txOffset)
+          .arg (autoTxSlot ? tr (" (slot libero dal waterfall)") : tr (" (slot manuale)")));
+      return txOffset;
     };
 
   auto abortMonitorHunterQso = [this] {
@@ -223,8 +252,18 @@ Replace-Required "widgets/mainwindow.cpp" @'
       monitor (true);
     };
 
+  auto releaseMonitorHunterTx = [this] {
+      if (!m_monitorHunterHoldSaved) return;
+
+      ui->cbHoldTxFreq->setChecked (m_monitorHunterPreviousHold);
+      HoldTxFreqStatus = m_monitorHunterPreviousHold;
+      ui->TxFreqSpinBox->setValue (m_monitorHunterPreviousTxFreq);
+      m_monitorHunterHoldSaved = false;
+    };
+
   auto * monitorHunterPanel = new MonitorHunterPanel {
-    m_config.my_callsign (), startMonitorHunterQso, abortMonitorHunterQso, m_settings, this};
+    m_config.my_callsign (), startMonitorHunterQso, abortMonitorHunterQso,
+    releaseMonitorHunterTx, m_settings, this};
   g_monitorHunterPanel = monitorHunterPanel;
 
   auto updateMonitorHunterFilter = [this, monitorHunterPanel] {
@@ -341,7 +380,7 @@ Replace-Required "widgets/mainwindow.cpp" @'
 Write-Host "Applied FT8 Hunter $HunterVersion branding + read-only Log4OM MySQL integration."
 
 
-# FT8 Hunter 1.0.10: filtro country/DXCC gia' lavorati.
+# FT8 Hunter 1.0.11: filtro country/DXCC gia' lavorati.
 Replace-Required "widgets/mainwindow.ui" @'
     <addaction name="actionHideB4"/>
     <addaction name="actionHideToday"/>
@@ -450,7 +489,7 @@ Replace-Required "widgets/mainwindow.cpp" @'
 Write-Host "Applied FT8 Hunter $HunterVersion auto-refresh + worked-country filter + DXFun cluster."
 
 
-# FT8 Hunter 1.0.10: puntatore al pannello cluster usato dai hook decoder/TX.
+# FT8 Hunter 1.0.11: puntatore al pannello cluster usato dai hook decoder/TX.
 Replace-Required "widgets/mainwindow.cpp" @'
 QString earlyDecodes = "";  //ft8md
 '@ @'
@@ -459,7 +498,7 @@ DxFunClusterPanel * g_dxFunPanel = nullptr;
 MonitorHunterPanel * g_monitorHunterPanel = nullptr;
 '@
 
-# FT8 Hunter 1.0.10: quando la stazione spottata viene realmente decodificata,
+# FT8 Hunter 1.0.11: quando la stazione spottata viene realmente decodificata,
 # passa dalla finestra di ascolto di 150 s al QSO automatico WSJT-X.
 Replace-Required "widgets/mainwindow.cpp" @'
         QString text = decodedtext.string().replace("<","").replace(">","");   // for Wait & Reply/Call and filtering
@@ -495,7 +534,7 @@ Replace-Required "widgets/mainwindow.cpp" @'
         }
 '@
 
-# FT8 Hunter 1.0.10: rampa RF del 7300 ad ogni trasmissione Hunter.
+# FT8 Hunter 1.0.11: rampa RF del 7300 ad ogni trasmissione Hunter.
 Replace-Required "widgets/mainwindow.cpp" @'
     transmit (snr);
 '@ @'
@@ -699,7 +738,7 @@ void Configuration::transceiver_volume (qreal volume)
 Write-Host "Applied FT8 Hunter $HunterVersion DXFun HF hunter + 150s acquire + auto-QSO + RF power ramp."
 
 
-# FT8 Hunter 1.0.10: RF Power anche quando l'IC-7300 e' configurato tramite OmniRig.
+# FT8 Hunter 1.0.11: RF Power anche quando l'IC-7300 e' configurato tramite OmniRig.
 # OmniRig accetta SAFEARRAY(BYTE); ActiveQt mappa QByteArray su SAFEARRAY(BYTE).
 Replace-Required "Transceiver/OmniRigTransceiver.hpp" @'
   void do_mode (MODE) override;
@@ -759,7 +798,7 @@ void OmniRigTransceiver::do_ptt (bool on)
 Write-Host "Applied FT8 Hunter $HunterVersion IC-7300 RF power control through OmniRig."
 
 
-# FT8 Hunter 1.0.10: la finestra Log QSO resta visibile per 4 secondi,
+# FT8 Hunter 1.0.11: la finestra Log QSO resta visibile per 4 secondi,
 # poi viene confermata automaticamente come se l'operatore premesse OK.
 # Se l'utente la conferma o la annulla prima, il timer non fa nulla.
 Replace-Required "widgets/logqso.cpp" @'
@@ -782,7 +821,7 @@ Replace-Required "widgets/logqso.cpp" @'
 Write-Host "Applied FT8 Hunter $HunterVersion Log QSO 4-second auto-confirm."
 
 
-# FT8 Hunter 1.0.10: quando il Log QSO emette acceptQSO, il Monitor Hunter puo' passare al CQ successivo.
+# FT8 Hunter 1.0.11: quando il Log QSO emette acceptQSO, il Monitor Hunter puo' passare al CQ successivo.
 Replace-Required "widgets/mainwindow.cpp" @'
   connect (m_logDlg.data (), &LogQSO::acceptQSO, this, &MainWindow::acceptQSO);
 '@ @'
@@ -796,7 +835,7 @@ Replace-Required "widgets/mainwindow.cpp" @'
 Write-Host "Applied FT8 Hunter $HunterVersion Monitor Hunter log-completion hook."
 
 
-# FT8 Hunter 1.0.10: osserva i decode dopo i filtri.
+# FT8 Hunter 1.0.11: osserva i decode dopo i filtri.
 # Un CQ entra nella coda solo se e' realmente visibile e il suo DXCC non risulta lavorato sulla banda.
 Replace-Required "widgets/mainwindow.cpp" @'
         // show distance and bearing
@@ -840,3 +879,18 @@ Replace-Required "widgets/mainwindow.cpp" @'
 '@
 
 Write-Host "Applied FT8 Hunter $HunterVersion Monitor Hunter decode queue."
+
+
+# FT8 Hunter 1.0.11: stato temporaneo Hold Tx Freq usato dal Monitor Hunter.
+Replace-Required "widgets/mainwindow.h" @'
+  QScopedPointer<WideGraph> m_wideGraph;
+  QScopedPointer<EchoGraph> m_echoGraph;
+'@ @'
+  QScopedPointer<WideGraph> m_wideGraph;
+  bool m_monitorHunterHoldSaved {false};
+  bool m_monitorHunterPreviousHold {false};
+  int m_monitorHunterPreviousTxFreq {0};
+  QScopedPointer<EchoGraph> m_echoGraph;
+'@
+
+Write-Host "Applied FT8 Hunter $HunterVersion Monitor Hunter Hold-TX state."

@@ -31,14 +31,18 @@ struct MonitorHunterCandidate
 class MonitorHunterPanel final : public QDialog
 {
 public:
+  static constexpr int StartUnavailable = -1;
   static constexpr int StopTransmission = -2;
 
-  using Starter = std::function<bool (MonitorHunterCandidate const&)>;
+  // Ritorna la frequenza audio TX bloccata; valore negativo = non ancora disponibile.
+  using Starter = std::function<int (MonitorHunterCandidate const&, bool autoTxSlot)>;
   using AbortHandler = std::function<void ()>;
+  using ReleaseHandler = std::function<void ()>;
 
   MonitorHunterPanel (QString const& myCall,
                       Starter starter,
                       AbortHandler abortHandler,
+                      ReleaseHandler releaseHandler,
                       QSettings * settings,
                       QWidget * parent = nullptr);
 
@@ -80,16 +84,25 @@ private:
   void appendEvent (MonitorHunterCandidate const& candidate, QString const& state);
   void updateSummary ();
   bool inCooldown (QString const& call, QDateTime const& now) const;
+  void showOffState (QString const& detail);
+  void showListeningState (QString const& detail);
+  void showCallingState (QString const& detail);
+  void showQsoState (QString const& detail);
+  void updateActiveLabels ();
 
   QString myCall_;
   Starter starter_;
   AbortHandler abortHandler_;
+  ReleaseHandler releaseHandler_;
   QSettings * settings_;
 
   QCheckBox * autoCheck_;
+  QCheckBox * autoTxSlotCheck_;
   QLabel * filterLabel_;
   QLabel * stateLabel_;
-  QLabel * activeLabel_;
+  QLabel * targetLabel_;
+  QLabel * txSlotLabel_;
+  QLabel * progressLabel_;
   QLabel * queueLabel_;
   QTableWidget * table_;
   QPushButton * stopButton_;
@@ -104,6 +117,8 @@ private:
   bool answered_ {false};
   int txCycles_ {0};
   int lastPowerPercent_ {50};
+  int lockedTxOffset_ {-1};
+  bool lockedTxWasAutomatic_ {false};
   quint64 completedQsos_ {0};
   quint64 failedCalls_ {0};
 };
