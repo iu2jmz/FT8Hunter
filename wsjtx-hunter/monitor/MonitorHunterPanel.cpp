@@ -491,6 +491,19 @@ bool MonitorHunterPanel::huntActive () const
   return state_ != HuntState::Idle;
 }
 
+bool MonitorHunterPanel::automaticEnabled () const
+{
+  return autoCheck_->isChecked ();
+}
+
+bool MonitorHunterPanel::setAutomaticEnabled (bool enabled)
+{
+  if (enabled && !filterActive_) return false;
+  if (autoCheck_->isChecked () != enabled)
+    autoCheck_->setChecked (enabled);
+  return autoCheck_->isChecked () == enabled;
+}
+
 int MonitorHunterPanel::nextTxPowerPercent (QString const& txMessage)
 {
   if (!qsoActive ()) return -1;
