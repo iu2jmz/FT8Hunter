@@ -69,6 +69,8 @@ public:
 
   bool qsoActive () const;
   bool huntActive () const;
+  bool automaticEnabled () const;
+  bool setAutomaticEnabled (bool enabled);
   int nextTxPowerPercent (QString const& txMessage);
   void transmissionExhausted ();
   void qsoLogged (QString const& call);
