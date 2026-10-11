@@ -475,7 +475,7 @@ void PskReporterPanel::observeLocalCq (QString const& rawText,
                                        int snr,
                                        bool eligibleCq)
 {
-  if (!listening_ || !autoQsyCheck_->isChecked ()) return;
+  if (!listening_) return;
 
   auto const call = cqCall.trimmed ().toUpper ();
   if (call.isEmpty () || call != active_.request.callsign.trimmed ().toUpper ()) return;
