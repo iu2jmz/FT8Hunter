@@ -79,6 +79,10 @@ public:
                               QString const& myCall);
   bool qsoActive () const;
   bool huntActive () const;
+  bool automaticEnabled () const;
+  bool setAutomaticEnabled (bool enabled);
+  bool connectionEnabled () const;
+  void setConnectionEnabled (bool enabled);
   QJsonObject remoteSnapshot () const;
   int nextTxPowerPercent (QString const& txMessage);
   void transmissionExhausted ();
