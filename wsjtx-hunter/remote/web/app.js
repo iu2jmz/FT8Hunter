@@ -63,6 +63,10 @@ function renderState(){
   $('#bandHunterInfo').textContent=(state.bandHunter&&state.bandHunter.currentBand)?(state.bandHunter.currentBand+' → '+(state.bandHunter.nextBand||'--')):'--';
   $('#dxState').textContent=(state.dxFun&&state.dxFun.active)?'ATTIVO':'IDLE';
   $('#pskState').textContent=(state.pskReporter&&state.pskReporter.active)?'ATTIVO':'IDLE';
+  $('#dxConnectBtn').textContent=(state.dxFun&&state.dxFun.connected)?'Disconnetti':'Connetti';
+  $('#dxAutoBtn').textContent=(state.dxFun&&state.dxFun.automatic)?'AUTO QSY ON':'AUTO QSY OFF';
+  $('#pskConnectBtn').textContent=(state.pskReporter&&state.pskReporter.connectionEnabled)?'Disconnetti':'Connetti';
+  $('#pskAutoBtn').textContent=(state.pskReporter&&state.pskReporter.automatic)?'AUTO QSY ON':'AUTO QSY OFF';
   renderBlacklist(state.blacklist||[]);
   renderDx(state.dxFun||{});
   renderPsk(state.pskReporter||{});
@@ -155,6 +159,12 @@ $('#bandHunterBtn').onclick=()=>command('band_hunter',{enabled:!(state.bandHunte
 $('#setFreqBtn').onclick=()=>command('set_frequency',{frequencyHz:Number($('#freqInput').value)});
 $('#blacklistRefresh').onclick=()=>command('refresh');
 $('#logRefresh').onclick=()=>command('get_log');
+$('#dxRefreshBtn').onclick=()=>command('refresh');
+$('#pskRefreshBtn').onclick=()=>command('refresh');
+$('#dxConnectBtn').onclick=()=>command('dxfun_connect',{enabled:!(state.dxFun&&state.dxFun.connected)});
+$('#dxAutoBtn').onclick=()=>command('dxfun_auto',{enabled:!(state.dxFun&&state.dxFun.automatic)});
+$('#pskConnectBtn').onclick=()=>command('psk_connect',{enabled:!(state.pskReporter&&state.pskReporter.connectionEnabled)});
+$('#pskAutoBtn').onclick=()=>command('psk_auto',{enabled:!(state.pskReporter&&state.pskReporter.automatic)});
 $('#disconnectBtn').onclick=()=>{localStorage.removeItem('ft8hunter-token');if(ws)ws.close()};
 $('#themeSelect').onchange=e=>{
   document.body.classList.toggle('light',e.target.value==='light');
