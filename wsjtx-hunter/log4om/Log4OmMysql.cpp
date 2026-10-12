@@ -216,3 +216,67 @@ QVector<Log4OmQsoRow> Log4OmMysql::loadWorkedQsos (Log4OmMysqlSettings const& se
   QSqlDatabase::removeDatabase (name);
   return rows;
 }
+
+
+QVector<Log4OmRecentQso> Log4OmMysql::loadRecentQsos (Log4OmMysqlSettings const& settings,
+                                                       int limit,
+                                                       QString * error)
+{
+  QVector<Log4OmRecentQso> rows;
+  if (error) error->clear ();
+  if (limit < 1) limit = 1;
+  if (limit > 100) limit = 100;
+
+  auto const name = connectionName ();
+  applyTlsPolicy (settings);
+  {
+    auto db = QSqlDatabase::addDatabase (QStringLiteral ("QMYSQL"), name);
+    if (!db.isValid ())
+      {
+        if (error)
+          *error = QStringLiteral ("Driver QMYSQL non disponibile. Driver presenti: %1")
+                     .arg (QSqlDatabase::drivers ().join (QStringLiteral (", ")));
+      }
+    else
+      {
+        configure (db, settings);
+        if (!db.open ())
+          {
+            if (error) *error = db.lastError ().text ();
+          }
+        else
+          {
+            QSqlQuery q {db};
+            q.setForwardOnly (true);
+            auto sql = QStringLiteral ("SELECT callsign, qsodate, band, mode FROM log")
+              + filterSql (settings)
+              + QStringLiteral (" ORDER BY qsodate DESC LIMIT %1").arg (limit);
+            q.prepare (sql);
+            if (!settings.stationCallsign.trimmed ().isEmpty ())
+              q.addBindValue (settings.stationCallsign.trimmed ().toUpper ());
+
+            if (!q.exec ())
+              {
+                if (error) *error = q.lastError ().text ();
+              }
+            else
+              {
+                while (q.next ())
+                  {
+                    Log4OmRecentQso row;
+                    row.callsign = q.value (0).toString ().trimmed ().toUpper ();
+                    row.qsoDate = q.value (1).toString ().trimmed ();
+                    row.band = q.value (2).toString ().trimmed ();
+                    row.mode = q.value (3).toString ().trimmed ().toUpper ();
+                    if (!row.callsign.isEmpty ())
+                      rows.push_back (std::move (row));
+                  }
+              }
+            db.close ();
+          }
+      }
+  }
+
+  QSqlDatabase::removeDatabase (name);
+  return rows;
+}
