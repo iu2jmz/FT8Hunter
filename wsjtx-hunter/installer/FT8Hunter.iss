@@ -59,8 +59,10 @@ Filename: "{app}\bin\{#MainExe}"; Description: "Avvia FT8 Hunter 1.0.14"; Flags:
 
 [UninstallDelete]
 ; Solo se l'utente sceglie esplicitamente di rimuovere anche i dati personali.
-Type: files; Name: "{userappdata}\FT8 Hunter*.ini"; Check: ShouldRemovePersonalData
-Type: files; Name: "{localappdata}\FT8 Hunter*.ini"; Check: ShouldRemovePersonalData
+Type: files; Name: "{userappdata}\FT8 Hunter.ini"; Check: ShouldRemovePersonalData
+Type: files; Name: "{userappdata}\FT8 Hunter - *.ini"; Check: ShouldRemovePersonalData
+Type: files; Name: "{localappdata}\FT8 Hunter.ini"; Check: ShouldRemovePersonalData
+Type: files; Name: "{localappdata}\FT8 Hunter - *.ini"; Check: ShouldRemovePersonalData
 Type: filesandordirs; Name: "{userappdata}\FT8 Hunter"; Check: ShouldRemovePersonalData
 Type: filesandordirs; Name: "{localappdata}\FT8 Hunter"; Check: ShouldRemovePersonalData
 
