@@ -3,6 +3,7 @@
 #include <QDateTime>
 #include <QDialog>
 #include <QHash>
+#include <QJsonObject>
 #include <QString>
 #include <functional>
 
@@ -78,6 +79,7 @@ public:
 
   void openWindow ();
   bool huntActive () const;
+  QJsonObject remoteSnapshot () const;
   void yieldToDxFun ();
   void setWorkedBeforeState (bool ready, int recordCount, QString const& error);
 
