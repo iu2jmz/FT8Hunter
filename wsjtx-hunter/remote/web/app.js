@@ -1,7 +1,7 @@
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 let ws=null, cfg={webSocketPort:8788}, state={}, commandId=1;
 let manualDisconnect=false, reconnectTimer=null, pingTimer=null;
-const toast=m=>{const t=$('#toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1800)};
+const toast=(m,ms=1800)=>{const t=$('#toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),ms)};
 const formatHz=n=>Number(n||0).toLocaleString('it-IT');
 
 async function loadCfg(){
@@ -60,13 +60,32 @@ async function connectRemote(){
       renderSpectrum(m);
     }else if(m.type==='command_result'){
       if(Array.isArray(m.rows))renderLog(m.rows);
-      if(!m.ok)toast(m.message||'Comando rifiutato');else if(m.message)toast(m.message);
+      if(!m.ok)toast(m.message||'Comando rifiutato',5000);else if(m.message)toast(m.message);
     }
   };
 }
 
 function renderState(){
   $('#myCall').textContent=state.myCall||'IU2JMZ';
+
+  const txAllowed=state.allowTransmit===true;
+  const auth=$('#remoteTxBanner');
+  auth.classList.toggle('blocked',!txAllowed);
+  auth.innerHTML=txAllowed
+    ? '<b>TX REMOTA ABILITATA</b><span>I comandi Hunter che possono trasmettere sono autorizzati dal PC.</span>'
+    : '<b>TX REMOTA BLOCCATA</b><span>Sul PC abilita: Consenti comandi che possono avviare la TX.</span>';
+
+  ['monitorAutoBtn','bandHunterBtn','dxAutoBtn','pskAutoBtn'].forEach(id=>{
+    const b=$('#'+id); if(!b)return;
+    b.disabled=!txAllowed;
+    b.classList.toggle('remote-disabled',!txAllowed);
+  });
+  if($('#tuneBtn')){
+    const lockTune=!txAllowed && !state.tune;
+    $('#tuneBtn').disabled=lockTune;
+    $('#tuneBtn').classList.toggle('remote-disabled',lockTune);
+  }
+
   $('#freq').textContent=formatHz(state.frequencyHz);
   $('#freqInput').value=state.frequencyHz||0;
   $('#bandBadge').textContent=state.band||'--';
@@ -83,10 +102,18 @@ function renderState(){
   $('#targetCountry').textContent=(state.monitorHunter&&state.monitorHunter.country)||'—';
   $('#targetProgress').textContent=(state.monitorHunter&&state.monitorHunter.progress)||'0/8';
   $('#monitorAutoBtn').textContent=(state.monitorHunter&&state.monitorHunter.automatic)?'AUTO ON':'AUTO OFF';
+  $('#monitorReady').textContent=(state.monitorHunter&&state.monitorHunter.filterReady)
+    ? 'Filtro DXCC: PRONTO · Coda '+(state.monitorHunter.queueCount||0)
+    : 'Filtro DXCC: NON PRONTO';
   $('#bandHunterState').textContent=(state.bandHunter&&state.bandHunter.active)?'ATTIVO':'OFF';
   $('#bandHunterInfo').textContent=(state.bandHunter&&state.bandHunter.currentBand)?(state.bandHunter.currentBand+' → '+(state.bandHunter.nextBand||'--')):'--';
+  $('#bandReady').textContent=(state.monitorHunter&&state.monitorHunter.filterReady)?'Motore Monitor: PRONTO':'Motore Monitor: BLOCCATO';
   $('#dxState').textContent=(state.dxFun&&state.dxFun.active)?'ATTIVO':'IDLE';
+  $('#dxInfo').textContent=(state.dxFun&&state.dxFun.connected)?'Cluster connesso · '+(state.dxFun.candidates||0)+' candidati':'Cluster disconnesso';
   $('#pskState').textContent=(state.pskReporter&&state.pskReporter.active)?'ATTIVO':'IDLE';
+  $('#pskInfo').textContent=(state.pskReporter&&state.pskReporter.workedBeforeReady)
+    ? 'Worked Before pronto · '+(state.pskReporter.candidates||0)+' candidati'
+    : 'Worked Before non pronto';
   $('#tuneBtn').textContent=state.tune?'TUNE ON':'TUNE';
   $('#dxConnectBtn').textContent=(state.dxFun&&state.dxFun.connected)?'Disconnetti':'Connetti';
   $('#dxAutoBtn').textContent=(state.dxFun&&state.dxFun.automatic)?'AUTO QSY ON':'AUTO QSY OFF';
@@ -181,17 +208,17 @@ $('#monitorBtn').onclick=()=>command('monitor',{enabled:true});
 $('#tuneBtn').onclick=()=>command('tune',{enabled:!state.tune});
 $('#stopTxBtn').onclick=()=>command('stop_tx');
 $('#refreshBtn').onclick=()=>command('refresh');
-$('#monitorAutoBtn').onclick=()=>command('monitor_hunter_auto',{enabled:!(state.monitorHunter&&state.monitorHunter.automatic)});
-$('#bandHunterBtn').onclick=()=>command('band_hunter',{enabled:!(state.bandHunter&&state.bandHunter.active)});
+$('#monitorAutoBtn').onclick=()=>{if(!state.allowTransmit){toast('TX remota non autorizzata nelle impostazioni PC',5000);return}command('monitor_hunter_auto',{enabled:!(state.monitorHunter&&state.monitorHunter.automatic)})};
+$('#bandHunterBtn').onclick=()=>{if(!state.allowTransmit){toast('TX remota non autorizzata nelle impostazioni PC',5000);return}command('band_hunter',{enabled:!(state.bandHunter&&state.bandHunter.active)})};
 $('#setFreqBtn').onclick=()=>command('set_frequency',{frequencyHz:Number($('#freqInput').value)});
 $('#blacklistRefresh').onclick=()=>command('refresh');
 $('#logRefresh').onclick=()=>command('get_log');
 $('#dxRefreshBtn').onclick=()=>command('refresh');
 $('#pskRefreshBtn').onclick=()=>command('refresh');
 $('#dxConnectBtn').onclick=()=>command('dxfun_connect',{enabled:!(state.dxFun&&state.dxFun.connected)});
-$('#dxAutoBtn').onclick=()=>command('dxfun_auto',{enabled:!(state.dxFun&&state.dxFun.automatic)});
+$('#dxAutoBtn').onclick=()=>{if(!state.allowTransmit){toast('TX remota non autorizzata nelle impostazioni PC',5000);return}command('dxfun_auto',{enabled:!(state.dxFun&&state.dxFun.automatic)})};
 $('#pskConnectBtn').onclick=()=>command('psk_connect',{enabled:!(state.pskReporter&&state.pskReporter.connectionEnabled)});
-$('#pskAutoBtn').onclick=()=>command('psk_auto',{enabled:!(state.pskReporter&&state.pskReporter.automatic)});
+$('#pskAutoBtn').onclick=()=>{if(!state.allowTransmit){toast('TX remota non autorizzata nelle impostazioni PC',5000);return}command('psk_auto',{enabled:!(state.pskReporter&&state.pskReporter.automatic)})};
 $('#disconnectBtn').onclick=()=>{
   manualDisconnect=true;
   clearReconnect();
