@@ -24,3 +24,11 @@ body.light .tabs button{background:white}.glass{background:linear-gradient(160de
 body.light .band-grid button{background:#fff}
 body.light .band-grid button.active{background:linear-gradient(135deg,#0a88d6,#17b9d1);color:#fff}
 @media(max-width:700px){.band-grid{grid-template-columns:repeat(3,1fr)}}
+
+.remote-auth-banner{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 12px;padding:10px 12px;border-radius:12px;border:1px solid #5f7633;background:linear-gradient(135deg,#183b25,#0f2a1c);color:#c9ffd9;font-size:13px}
+.remote-auth-banner b{letter-spacing:.05em}
+.remote-auth-banner.blocked{border-color:#8f3946;background:linear-gradient(135deg,#4b1722,#2d1018);color:#ffd5dc}
+.remote-auth-banner span{color:inherit;opacity:.9}
+.status-card small{display:block;color:var(--muted);margin:-8px 0 10px}
+button.remote-disabled{opacity:.45;filter:saturate(.45);cursor:not-allowed}
+@media(max-width:700px){.remote-auth-banner{align-items:flex-start;flex-direction:column}}
