@@ -61,3 +61,65 @@ jobs:
           }
           Write-Host "FT8 Hunter still running after 12 seconds: startup OK on clean Windows profile."
           Stop-Process -Id $p.Id -Force
+
+
+  upgrade-smoke:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: wsjtx-v2-2.0.0
+
+      - name: Download 1.0.14 and 2.0.0 installers
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force -Path old,new | Out-Null
+          gh run download 38234538130 -n FT8Hunter_Setup_v1.0.14 -D old
+          gh run download 38241952664 -n FT8Hunter_Setup_v2.0.0 -D new
+          Get-ChildItem old,new -Recurse
+
+      - name: Install 1.0.14 and generate settings
+        shell: pwsh
+        run: |
+          $old = Get-ChildItem old -Filter "FT8Hunter_Setup_v1.0.14.exe" -Recurse | Select-Object -First 1
+          $args = @("/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/SP-","/DIR=C:\FT8HunterUpgrade")
+          $p = Start-Process -FilePath $old.FullName -ArgumentList $args -PassThru -Wait
+          if ($p.ExitCode -ne 0) { throw "1.0.14 installer exit $($p.ExitCode)" }
+
+          $env:QT_QPA_PLATFORM = "offscreen"
+          $app = Start-Process -FilePath "C:\FT8HunterUpgrade\bin\wsjtx.exe" -WorkingDirectory "C:\FT8HunterUpgrade\bin" -PassThru
+          Start-Sleep -Seconds 8
+          $app.Refresh()
+          if ($app.HasExited) { throw "1.0.14 failed before upgrade, exit $($app.ExitCode)" }
+          Stop-Process -Id $app.Id -Force
+          Start-Sleep -Seconds 2
+
+      - name: Upgrade in-place to 2.0.0
+        shell: pwsh
+        run: |
+          $new = Get-ChildItem new -Filter "FT8Hunter_Setup_v2.0.0.exe" -Recurse | Select-Object -First 1
+          $args = @("/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/SP-","/DIR=C:\FT8HunterUpgrade")
+          $p = Start-Process -FilePath $new.FullName -ArgumentList $args -PassThru -Wait
+          if ($p.ExitCode -ne 0) { throw "2.0.0 installer exit $($p.ExitCode)" }
+
+      - name: Launch 2.0.0 after 1.0.14 upgrade
+        shell: pwsh
+        run: |
+          $env:QT_QPA_PLATFORM = "offscreen"
+          $app = Start-Process -FilePath "C:\FT8HunterUpgrade\bin\wsjtx.exe" -WorkingDirectory "C:\FT8HunterUpgrade\bin" -PassThru
+          Start-Sleep -Seconds 12
+          $app.Refresh()
+          if ($app.HasExited) {
+            Write-Host "2.0.0 exited after upgrade. ExitCode=$($app.ExitCode)"
+            Get-ChildItem $env:APPDATA,$env:LOCALAPPDATA -Recurse -ErrorAction SilentlyContinue |
+              Where-Object { $_.Name -match "wsjtx|FT8|Hunter|error|log" } |
+              Sort-Object LastWriteTime -Descending |
+              Select-Object -First 60 FullName,Length,LastWriteTime |
+              Format-Table -AutoSize
+            throw "Upgrade startup smoke failed"
+          }
+          Write-Host "2.0.0 remains running after in-place 1.0.14 upgrade."
+          Stop-Process -Id $app.Id -Force
