@@ -10,8 +10,8 @@ android {
         applicationId "com.iu2jmz.ft8hunterremote"
         minSdk 26
         targetSdk 35
-        versionCode 2022002
-        versionName "2.2.2"
+        versionCode 2022003
+        versionName "2.2.3"
     }
 
     buildTypes {
