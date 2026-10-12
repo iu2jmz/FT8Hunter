@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="hunter_bg">#06101C</color>
+    <color name="hunter_panel">#0B1B2B</color>
+    <color name="hunter_cyan">#16D7FF</color>
+    <color name="hunter_text">#E7F5FF</color>
+    <color name="hunter_muted">#82A9C4</color>
+    <color name="hunter_red">#FF5364</color>
+</resources>
