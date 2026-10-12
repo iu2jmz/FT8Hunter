@@ -132,6 +132,29 @@ bool BandHunterPanel::active () const
   return enableCheck_->isChecked ();
 }
 
+bool BandHunterPanel::setActive (bool enabled)
+{
+  if (enableCheck_->isChecked () != enabled)
+    enableCheck_->setChecked (enabled);
+  return enableCheck_->isChecked () == enabled;
+}
+
+QJsonObject BandHunterPanel::remoteSnapshot () const
+{
+  QJsonObject out;
+  out.insert (QStringLiteral ("active"), active ());
+  out.insert (QStringLiteral ("currentBand"), currentBand_);
+  out.insert (QStringLiteral ("nextBand"), nextSelectedBand ());
+  out.insert (QStringLiteral ("elapsedSeconds"), elapsedSeconds_);
+  out.insert (QStringLiteral ("limitSeconds"), currentBand_.isEmpty () ? 0 : dwellSeconds ());
+  out.insert (QStringLiteral ("remainingSeconds"),
+              currentBand_.isEmpty () ? 0 : qMax (0, dwellSeconds () - elapsedSeconds_));
+  out.insert (QStringLiteral ("stabilizing"), stabilizing_);
+  out.insert (QStringLiteral ("externalPaused"), externalPaused_);
+  out.insert (QStringLiteral ("state"), stateLabel_->text ());
+  return out;
+}
+
 QStringList BandHunterPanel::selectedBands () const
 {
   QStringList result;
