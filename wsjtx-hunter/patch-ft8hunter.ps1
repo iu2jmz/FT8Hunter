@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory=$true)][string]$SourceDir,
-    [string]$HunterVersion = "2.0.1"
+    [string]$HunterVersion = "2.0.2"
 )
 
 $ErrorActionPreference = "Stop"
@@ -1986,7 +1986,7 @@ Replace-Required "widgets/mainwindow.cpp" @'
   auto remoteStateProvider =
     [this, monitorHunterPanel, bandHunterPanel, pskReporterPanel] () -> QJsonObject {
       QJsonObject state;
-      state.insert (QStringLiteral ("version"), QStringLiteral ("2.0.1"));
+      state.insert (QStringLiteral ("version"), QStringLiteral ("2.0.2"));
       state.insert (QStringLiteral ("myCall"), m_config.my_callsign ());
       state.insert (QStringLiteral ("frequencyHz"), static_cast<double> (m_freqNominal));
       state.insert (QStringLiteral ("band"), m_currentBand);
@@ -2335,7 +2335,7 @@ Replace-Required "widgets/mainwindow.cpp" @'
         }
     });
 
-  auto * remoteAction = hunterMenu->addAction (tr ("FT8 Hunter Remote 2.0.1..."));
+  auto * remoteAction = hunterMenu->addAction (tr ("FT8 Hunter Remote 2.0.2..."));
   connect (remoteAction, &QAction::triggered, this, [this, ensureRemoteServer] {
       HunterStartupTrace::write (QStringLiteral ("Remote: settings dialog requested"));
       auto settings = HunterRemoteServer::loadSettings ();
@@ -2379,3 +2379,124 @@ Replace-Required "widgets/mainwindow.cpp" @'
 '@
 
 Write-Host "Applied FT8 Hunter $HunterVersion safe-start styling + deferred authenticated Remote PWA server."
+
+
+# ---------------------------------------------------------------------------
+# FT8 Hunter 2.0.2 - startup checkpoints per diagnosi Windows reale
+# ---------------------------------------------------------------------------
+
+Replace-Required "widgets/mainwindow.cpp" @'
+  auto * hunterMenu = ui->menuTools->addMenu (tr ("FT8 Hunter"));
+  auto * log4omMysqlAction = hunterMenu->addAction (tr ("Log4OM MySQL..."));
+'@ @'
+  HunterStartupTrace::write (QStringLiteral ("Hunter: before menu"));
+  auto * hunterMenu = ui->menuTools->addMenu (tr ("FT8 Hunter"));
+  HunterStartupTrace::write (QStringLiteral ("Hunter: menu created"));
+  auto * log4omMysqlAction = hunterMenu->addAction (tr ("Log4OM MySQL..."));
+  HunterStartupTrace::write (QStringLiteral ("Hunter: Log4OM action created"));
+'@
+
+Replace-Required "widgets/mainwindow.cpp" @'
+  auto * dxFunPanel = new DxFunClusterPanel {
+    m_config.my_callsign (), evaluateDxFunSpot, tuneDxFunSpot,
+    abortDxFunQso, m_settings, this};
+  g_dxFunPanel = dxFunPanel;
+'@ @'
+  HunterStartupTrace::write (QStringLiteral ("Hunter: before DXFun panel"));
+  auto * dxFunPanel = new DxFunClusterPanel {
+    m_config.my_callsign (), evaluateDxFunSpot, tuneDxFunSpot,
+    abortDxFunQso, m_settings, this};
+  HunterStartupTrace::write (QStringLiteral ("Hunter: after DXFun panel"));
+  g_dxFunPanel = dxFunPanel;
+'@
+
+Replace-Required "widgets/mainwindow.cpp" @'
+  auto * monitorHunterPanel = new MonitorHunterPanel {
+    m_config.my_callsign (), startMonitorHunterQso,
+    pauseMonitorHunterQso, resumeMonitorHunterQso,
+    abortMonitorHunterQso, releaseMonitorHunterTx, m_settings, this};
+  g_monitorHunterPanel = monitorHunterPanel;
+'@ @'
+  HunterStartupTrace::write (QStringLiteral ("Hunter: before Monitor panel"));
+  auto * monitorHunterPanel = new MonitorHunterPanel {
+    m_config.my_callsign (), startMonitorHunterQso,
+    pauseMonitorHunterQso, resumeMonitorHunterQso,
+    abortMonitorHunterQso, releaseMonitorHunterTx, m_settings, this};
+  HunterStartupTrace::write (QStringLiteral ("Hunter: after Monitor panel"));
+  g_monitorHunterPanel = monitorHunterPanel;
+'@
+
+Replace-Required "widgets/mainwindow.cpp" @'
+  updateMonitorHunterFilter ();
+
+  auto * monitorHunterAction = hunterMenu->addAction (tr ("Monitor Hunter..."));
+'@ @'
+  updateMonitorHunterFilter ();
+  HunterStartupTrace::write (QStringLiteral ("Hunter: Monitor filter initialized"));
+
+  auto * monitorHunterAction = hunterMenu->addAction (tr ("Monitor Hunter..."));
+'@
+
+Replace-Required "widgets/mainwindow.cpp" @'
+  auto * bandHunterPanel = new BandHunterPanel {
+    tuneBandHunterBand,
+    [monitorHunterPanel] { return monitorHunterPanel->automaticEnabled (); },
+    [monitorHunterPanel] (bool on) { return monitorHunterPanel->setAutomaticEnabled (on); },
+    [monitorHunterPanel] { return monitorHunterPanel->huntActive (); },
+    [] {
+      return (g_dxFunPanel && g_dxFunPanel->huntActive ())
+        || (g_pskReporterPanel && g_pskReporterPanel->huntActive ());
+    },
+    m_settings, this};
+  g_bandHunterPanel = bandHunterPanel;
+'@ @'
+  HunterStartupTrace::write (QStringLiteral ("Hunter: before Band panel"));
+  auto * bandHunterPanel = new BandHunterPanel {
+    tuneBandHunterBand,
+    [monitorHunterPanel] { return monitorHunterPanel->automaticEnabled (); },
+    [monitorHunterPanel] (bool on) { return monitorHunterPanel->setAutomaticEnabled (on); },
+    [monitorHunterPanel] { return monitorHunterPanel->huntActive (); },
+    [] {
+      return (g_dxFunPanel && g_dxFunPanel->huntActive ())
+        || (g_pskReporterPanel && g_pskReporterPanel->huntActive ());
+    },
+    m_settings, this};
+  HunterStartupTrace::write (QStringLiteral ("Hunter: after Band panel"));
+  g_bandHunterPanel = bandHunterPanel;
+'@
+
+Replace-Required "widgets/mainwindow.cpp" @'
+  auto * pskReporterPanel = new PskReporterPanel {
+    evaluatePskReporter, tunePskReporter, handoffPskReporter, m_settings, this};
+  g_pskReporterPanel = pskReporterPanel;
+'@ @'
+  HunterStartupTrace::write (QStringLiteral ("Hunter: before PSK panel"));
+  auto * pskReporterPanel = new PskReporterPanel {
+    evaluatePskReporter, tunePskReporter, handoffPskReporter, m_settings, this};
+  HunterStartupTrace::write (QStringLiteral ("Hunter: after PSK panel"));
+  g_pskReporterPanel = pskReporterPanel;
+'@
+
+Replace-Required "widgets/mainwindow.cpp" @'
+  pskReporterPanel->setWorkedBeforeState (false, 0, QString {});
+  m_logBook.rescan ();
+
+  auto * pskReporterAction =
+'@ @'
+  HunterStartupTrace::write (QStringLiteral ("Hunter: before PSK WorkedBefore init"));
+  pskReporterPanel->setWorkedBeforeState (false, 0, QString {});
+  HunterStartupTrace::write (QStringLiteral ("Hunter: before LogBook rescan"));
+  m_logBook.rescan ();
+  HunterStartupTrace::write (QStringLiteral ("Hunter: after LogBook rescan"));
+
+  auto * pskReporterAction =
+'@
+
+Replace-Required "widgets/mainwindow.cpp" @'
+  auto * log4omRefreshTimer = new QTimer {this};
+'@ @'
+  HunterStartupTrace::write (QStringLiteral ("Hunter: before Log4OM refresh timer"));
+  auto * log4omRefreshTimer = new QTimer {this};
+'@
+
+Write-Host "Applied FT8 Hunter $HunterVersion detailed startup checkpoints."
