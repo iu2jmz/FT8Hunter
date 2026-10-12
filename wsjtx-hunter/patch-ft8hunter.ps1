@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory=$true)][string]$SourceDir,
-    [string]$HunterVersion = "1.0.13 Beta"
+    [string]$HunterVersion = "1.0.14"
 )
 
 $ErrorActionPreference = "Stop"
@@ -1551,24 +1551,24 @@ Write-Host "Applied FT8 Hunter $HunterVersion exact DXFun QSY/split + automatic 
 
 
 # ---------------------------------------------------------------------------
-# FT8 Hunter 1.0.13 Beta
-# Branding IU2JMZ, PSK Reporter sperimentale e integrazione Hunter.
+# FT8 Hunter 1.0.14 stabile
+# Branding IU2JMZ, PSK Reporter e integrazione Hunter.
 # ---------------------------------------------------------------------------
 
-# Mantieni la Beta separata dalla stabile anche per impostazioni e dati utente.
-Replace-Required "main.cpp" 'a.setApplicationName ("FT8 Hunter");' 'a.setApplicationName ("FT8 Hunter Beta");'
+# La 1.0.14 mantiene il nome applicazione "FT8 Hunter" della linea stabile:
+# riutilizza quindi configurazione radio/audio, filtri e Log4OM/MySQL esistenti.
 
 # Il logo approvato viene usato per splash e icona Windows dell'eseguibile.
 if (-not (Test-Path "wsjtx-hunter/branding/FT8Hunter.png")) {
-    throw "Logo Beta non trovato: wsjtx-hunter/branding/FT8Hunter.png"
+    throw "Logo FT8 Hunter non trovato: wsjtx-hunter/branding/FT8Hunter.png"
 }
 if (-not (Test-Path "wsjtx-hunter/branding/FT8Hunter.ico")) {
-    throw "Icona Beta non trovata: wsjtx-hunter/branding/FT8Hunter.ico"
+    throw "Icona FT8 Hunter non trovata: wsjtx-hunter/branding/FT8Hunter.ico"
 }
 Copy-Item "wsjtx-hunter/branding/FT8Hunter.ico" (Join-Path $SourceDir "icons/windows-icons/wsjtx.ico") -Force
 Copy-Item "wsjtx-hunter/branding/FT8Hunter.png" (Join-Path $SourceDir "artwork/splash.png") -Force
 
-# PSK Reporter: sorgente sperimentale separata.
+# PSK Reporter: sorgente remota separata con conferma CQ locale.
 Copy-Item "wsjtx-hunter/psk/PskReporterMqtt.hpp" (Join-Path $hunterDir "PskReporterMqtt.hpp") -Force
 Copy-Item "wsjtx-hunter/psk/PskReporterMqtt.cpp" (Join-Path $hunterDir "PskReporterMqtt.cpp") -Force
 Copy-Item "wsjtx-hunter/psk/PskReporterPanel.hpp" (Join-Path $hunterDir "PskReporterPanel.hpp") -Force
@@ -1632,7 +1632,7 @@ Replace-Required "widgets/mainwindow.cpp" @'
       if (g_pskReporterPanel && g_pskReporterPanel->huntActive ()) return MonitorHunterPanel::StartUnavailable;
 '@
 
-# Crea la finestra PSK Reporter Beta dopo Band Hunter.
+# Crea la finestra PSK Reporter dopo Band Hunter.
 Replace-Required "widgets/mainwindow.cpp" @'
   auto * bandHunterAction = hunterMenu->addAction (tr ("Band Hunter..."));
   connect (bandHunterAction, &QAction::triggered, [bandHunterPanel] {
@@ -1749,7 +1749,7 @@ Replace-Required "widgets/mainwindow.cpp" @'
       monitor (true);
 
       showStatusMessage (
-        tr ("PSK Reporter Beta -> %1 %2 | %3 | ascolto CQ locale")
+        tr ("PSK Reporter -> %1 %2 | %3 | ascolto CQ locale")
           .arg (request.callsign)
           .arg (request.band)
           .arg (request.status));
@@ -1782,8 +1782,23 @@ Replace-Required "widgets/mainwindow.cpp" @'
     evaluatePskReporter, tunePskReporter, handoffPskReporter, m_settings, this};
   g_pskReporterPanel = pskReporterPanel;
 
+  // PSK Reporter deve classificare NEW DXCC/NEW BANDA solo dopo che il
+  // Worked Before e' stato caricato. Se Log4OM/MySQL e' abilitato, quel
+  // caricamento comprende anche il database remoto. In caso di errore,
+  // AUTO QSY PSK resta disabilitato: meglio nessun candidato che un falso NEW.
+  connect (&m_logBook, &LogBook::finished_loading, pskReporterPanel,
+           [pskReporterPanel] (int recordCount, QString, QString const& error) {
+      pskReporterPanel->setWorkedBeforeState (error.trimmed ().isEmpty (),
+                                              recordCount, error);
+    });
+
+  // Forza un nuovo caricamento dopo aver collegato il pannello, cosi' la
+  // 1.0.14 verifica subito la configurazione Log4OM/MySQL gia' usata dalla stabile.
+  pskReporterPanel->setWorkedBeforeState (false, 0, QString {});
+  m_logBook.rescan ();
+
   auto * pskReporterAction =
-    hunterMenu->addAction (tr ("PSK Reporter Beta..."));
+    hunterMenu->addAction (tr ("PSK Reporter..."));
   connect (pskReporterAction, &QAction::triggered, [pskReporterPanel] {
       pskReporterPanel->openWindow ();
     });
@@ -1829,4 +1844,4 @@ Replace-Required "widgets/mainwindow.cpp" @'
             m_mode, m_currentBand, mhCountry, mhEligibleCq && !pskWasListening);
 '@
 
-Write-Host "Applied FT8 Hunter $HunterVersion Beta branding + PSK Reporter local-CQ gate."
+Write-Host "Applied FT8 Hunter $HunterVersion branding + PSK Reporter local-CQ gate + Log4OM readiness gate."
