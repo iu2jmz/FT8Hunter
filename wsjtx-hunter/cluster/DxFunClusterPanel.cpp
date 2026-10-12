@@ -4,6 +4,7 @@
 #include <QCheckBox>
 #include <QFont>
 #include <QHeaderView>
+#include <QJsonArray>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
@@ -614,6 +615,22 @@ QJsonObject DxFunClusterPanel::remoteSnapshot () const
   out.insert (QStringLiteral ("status"), active_.request.status);
   out.insert (QStringLiteral ("spots"), static_cast<double> (allSpots_));
   out.insert (QStringLiteral ("candidates"), static_cast<double> (candidateSpots_));
+
+  QJsonArray recent;
+  auto const count = qMin (20, table_->rowCount ());
+  for (int row = 0; row < count; ++row)
+    {
+      QJsonObject spot;
+      spot.insert (QStringLiteral ("utc"), table_->item (row, 0) ? table_->item (row, 0)->text () : QString {});
+      spot.insert (QStringLiteral ("call"), table_->item (row, 1) ? table_->item (row, 1)->text () : QString {});
+      spot.insert (QStringLiteral ("mhz"), table_->item (row, 2) ? table_->item (row, 2)->text () : QString {});
+      spot.insert (QStringLiteral ("band"), table_->item (row, 3) ? table_->item (row, 3)->text () : QString {});
+      spot.insert (QStringLiteral ("mode"), table_->item (row, 4) ? table_->item (row, 4)->text () : QString {});
+      spot.insert (QStringLiteral ("status"), table_->item (row, 5) ? table_->item (row, 5)->text () : QString {});
+      spot.insert (QStringLiteral ("comment"), table_->item (row, 6) ? table_->item (row, 6)->text () : QString {});
+      recent.append (spot);
+    }
+  out.insert (QStringLiteral ("recent"), recent);
   return out;
 }
 
