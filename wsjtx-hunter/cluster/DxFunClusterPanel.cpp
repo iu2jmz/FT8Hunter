@@ -72,6 +72,12 @@ DxFunClusterPanel::DxFunClusterPanel (QString const& defaultCallsign,
   , qsoTimer_ {new QTimer {this}}
 {
   setObjectName (QStringLiteral ("FT8HunterDXFunCluster"));
+  statusLabel_->setObjectName (QStringLiteral ("HunterStatusLine"));
+  countersLabel_->setObjectName (QStringLiteral ("HunterCountersLine"));
+  connectButton_->setObjectName (QStringLiteral ("HunterAccentButton"));
+  autoQsyButton_->setObjectName (QStringLiteral ("HunterPrimaryButton"));
+  goButton_->setObjectName (QStringLiteral ("HunterPrimaryButton"));
+  clearButton_->setObjectName (QStringLiteral ("HunterSecondaryButton"));
   setAllowedAreas (Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea | Qt::BottomDockWidgetArea);
   setMinimumWidth (760);
 
@@ -137,6 +143,7 @@ DxFunClusterPanel::DxFunClusterPanel (QString const& defaultCallsign,
   root->addWidget (table_);
 
   auto * body = new QWidget {this};
+  body->setObjectName (QStringLiteral ("HunterPanelBody"));
   body->setLayout (root);
   setWidget (body);
 
