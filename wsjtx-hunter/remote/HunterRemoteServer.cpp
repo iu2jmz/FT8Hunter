@@ -337,6 +337,7 @@ void HunterRemoteServer::handleWebSocketMessage (QWebSocket * socket, QString co
         {
           auto state = stateProvider_ ();
           state.insert (QStringLiteral ("type"), QStringLiteral ("state"));
+          state.insert (QStringLiteral ("allowTransmit"), settings_.allowTransmit);
           sendJson (socket, state);
         }
       return;
@@ -374,6 +375,7 @@ void HunterRemoteServer::broadcastState ()
   if (!stateProvider_) return;
   auto state = stateProvider_ ();
   state.insert (QStringLiteral ("type"), QStringLiteral ("state"));
+  state.insert (QStringLiteral ("allowTransmit"), settings_.allowTransmit);
 
   for (auto it = clients_.cbegin (); it != clients_.cend (); ++it)
     if (it.value ())
