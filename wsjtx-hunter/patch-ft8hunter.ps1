@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory=$true)][string]$SourceDir,
-    [string]$HunterVersion = "1.0.14"
+    [string]$HunterVersion = "2.0.0"
 )
 
 $ErrorActionPreference = "Stop"
@@ -903,6 +903,7 @@ Replace-Required "widgets/widegraph.h" @'
 '@ @'
   void   setTxFreq(int n);
   int    bestQuietTxFrequency(int avoidHz, QString const& mode);
+  QVector<float> hunterRemoteSpectrum(int points = 256) const;
   void   setMode(QString mode);
 '@
 
@@ -964,8 +965,8 @@ int WideGraph::bestQuietTxFrequency (int avoidHz, QString const& mode)
   double const graphStart = ui->widePlot->startFreq ();
   double const graphEnd = graphStart + m_jz * m_hunterBinHz;
 
-  int const low = qMax (250, static_cast<int> (ceil (graphStart + guard)));
-  int const high = qMin (2800, static_cast<int> (floor (graphEnd - signalWidth - guard)));
+  int const low = qMax (500, static_cast<int> (ceil (graphStart + guard)));
+  int const high = qMin (2400, static_cast<int> (floor (graphEnd - signalWidth - guard)));
   if (high <= low) return -1;
 
   double bestScore = 1.0e300;
@@ -1012,6 +1013,30 @@ int WideGraph::bestQuietTxFrequency (int avoidHz, QString const& mode)
     }
 
   return bestTx;
+}
+
+QVector<float> WideGraph::hunterRemoteSpectrum (int points) const
+{
+  QVector<float> out;
+  if (points < 16 || m_hunterSpectrumFrames < 1 || m_hunterBinHz <= 0.0 || m_jz < 4)
+    return out;
+
+  double const graphStart = ui->widePlot->startFreq ();
+  int const lowHz = 500;
+  int const highHz = 2400;
+  out.reserve (points);
+
+  for (int p = 0; p < points; ++p)
+    {
+      auto const hz =
+        lowHz + (static_cast<double> (p) / qMax (1, points - 1)) * (highHz - lowHz);
+      auto const index = static_cast<int> (qRound ((hz - graphStart) / m_hunterBinHz));
+      if (index < 0 || index >= m_jz)
+        out.append (0.0f);
+      else
+        out.append (m_hunterSpectrum[index]);
+    }
+  return out;
 }
 
 void WideGraph::setMode(QString mode)                              //setMode
