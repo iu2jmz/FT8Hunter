@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#071321">
+  <title>FT8 Hunter Remote 2.0.0</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icon.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="login" class="overlay">
+    <div class="login-card glass">
+      <img src="icon.png" alt="FT8 Hunter">
+      <h1>FT8 Hunter Remote</h1>
+      <p>IU2JMZ · v2.0.0</p>
+      <label>Token di accesso</label>
+      <input id="token" autocomplete="off" spellcheck="false" placeholder="Token mostrato sul PC">
+      <button id="connectBtn" class="primary">Connetti</button>
+      <small>Usa la LAN o una VPN. Non esporre direttamente le porte su Internet.</small>
+      <div id="loginError" class="error"></div>
+    </div>
+  </div>
+
+  <header>
+    <div class="brand">
+      <img src="icon.png" alt="">
+      <div><strong>FT8 HUNTER</strong><span>Remote 2.0.0</span></div>
+    </div>
+    <div class="identity"><b id="myCall">IU2JMZ</b><span id="connDot" class="dot off"></span><span id="connText">Offline</span></div>
+  </header>
+
+  <main>
+    <nav class="tabs">
+      <button data-tab="radio" class="active">Radio</button>
+      <button data-tab="hunter">Hunter</button>
+      <button data-tab="dx">DX</button>
+      <button data-tab="psk">PSK</button>
+      <button data-tab="log">Log</button>
+      <button data-tab="blacklist">Blacklist</button>
+      <button data-tab="settings">Impostazioni</button>
+    </nav>
+
+    <section id="radio" class="page active">
+      <div class="hero glass">
+        <div class="mode-row">
+          <button class="mode active" data-mode="FT8">FT8</button>
+          <button class="mode" data-mode="FT4">FT4</button>
+          <span id="bandBadge" class="badge">20 m</span>
+        </div>
+        <div id="freq" class="frequency">14.074.000</div>
+        <div class="subline"><span>RX <b id="rxHz">1500</b> Hz</span><span>TX <b id="txHz">1500</b> Hz</span><span>RF <b id="rfPower">--</b>%</span></div>
+      </div>
+
+      <div class="glass spectrum-card">
+        <div class="card-title">WATERFALL &amp; SPECTRUM <span>TX AUTO 500–2400 Hz</span></div>
+        <canvas id="spectrum" width="1000" height="210"></canvas>
+        <canvas id="waterfall" width="1000" height="300"></canvas>
+        <div class="scale"><span>500</span><span>1000</span><span>1500</span><span>2000</span><span>2400 Hz</span></div>
+      </div>
+
+      <div class="controls-grid">
+        <div class="glass control">
+          <label>RX audio</label>
+          <div class="step-row"><button data-rx="-50">−</button><input id="rxInput" type="number" min="200" max="5000" step="10"><button data-rx="50">+</button></div>
+        </div>
+        <div class="glass control">
+          <label>TX audio</label>
+          <div class="step-row"><button data-tx="-50">−</button><input id="txInput" type="number" min="500" max="2400" step="10"><button data-tx="50">+</button></div>
+        </div>
+        <div class="glass control">
+          <label>Potenza RF</label>
+          <input id="power" type="range" min="5" max="100" step="5">
+        </div>
+      </div>
+
+      <div class="action-row">
+        <button id="monitorBtn" class="success">RX Monitor</button>
+        <button id="stopTxBtn" class="danger">STOP TX</button>
+        <button id="refreshBtn">Aggiorna</button>
+      </div>
+    </section>
+
+    <section id="hunter" class="page">
+      <div class="status-grid">
+        <article class="glass status-card"><h3>Monitor Hunter</h3><strong id="monitorState">--</strong><p id="monitorTarget">Nessun target</p><button id="monitorAutoBtn">AUTO</button></article>
+        <article class="glass status-card"><h3>Band Hunter</h3><strong id="bandHunterState">--</strong><p id="bandHunterInfo">--</p><button id="bandHunterBtn">START / STOP</button></article>
+        <article class="glass status-card"><h3>DXFun</h3><strong id="dxState">--</strong><p>Priorità remota</p></article>
+        <article class="glass status-card"><h3>PSK Reporter</h3><strong id="pskState">--</strong><p>Conferma CQ locale</p></article>
+      </div>
+      <div class="glass target-card">
+        <div class="card-title">TARGET CORRENTE</div>
+        <div class="target"><div><span id="targetCall">—</span><small id="targetCountry">—</small></div><b id="targetProgress">0/8</b></div>
+      </div>
+    </section>
+
+    <section id="dx" class="page"><div class="glass placeholder"><h2>DXFun Cluster</h2><p>Stato e spot DXFun sincronizzati dal PC.</p></div></section>
+    <section id="psk" class="page"><div class="glass placeholder"><h2>PSK Reporter</h2><p>I candidati vengono filtrati contro Log4OM/Worked Before e confermati localmente prima della TX.</p></div></section>
+    <section id="log" class="page"><div class="glass placeholder"><h2>QSO Log</h2><p>Vista remota degli ultimi QSO. La scrittura principale resta sul PC.</p></div></section>
+
+    <section id="blacklist" class="page">
+      <div class="glass list-card">
+        <div class="card-title">BLACKLIST MONITOR HUNTER <button id="blacklistRefresh">Aggiorna</button></div>
+        <div id="blacklistRows" class="list"></div>
+      </div>
+    </section>
+
+    <section id="settings" class="page">
+      <div class="glass settings-card">
+        <h2>Impostazioni Remote</h2>
+        <label>Tema app
+          <select id="themeSelect"><option value="dark">Dark</option><option value="light">Light</option></select>
+        </label>
+        <label>Frequenza radio (Hz)
+          <input id="freqInput" type="number" min="1000000" max="60000000" step="1">
+        </label>
+        <button id="setFreqBtn">Imposta frequenza</button>
+        <button id="disconnectBtn" class="danger ghost">Disconnetti</button>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast"></div>
+  <script src="app.js"></script>
+</body>
+</html>
