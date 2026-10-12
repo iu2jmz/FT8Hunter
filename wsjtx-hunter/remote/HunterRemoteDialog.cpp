@@ -23,7 +23,7 @@ HunterRemoteDialog::HunterRemoteDialog (HunterRemoteSettings settings, QWidget *
   , url_ {new QLabel {this}}
   , regenerate_ {new QPushButton {tr ("Rigenera token"), this}}
 {
-  setWindowTitle (tr ("FT8 Hunter Remote 2.2.2"));
+  setWindowTitle (tr ("FT8 Hunter Remote 2.2.3"));
   setModal (true);
   setMinimumWidth (620);
 
