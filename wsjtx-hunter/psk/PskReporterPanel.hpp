@@ -79,6 +79,10 @@ public:
 
   void openWindow ();
   bool huntActive () const;
+  bool automaticEnabled () const;
+  bool setAutomaticEnabled (bool enabled);
+  bool connectionEnabled () const;
+  void setConnectionEnabled (bool enabled);
   QJsonObject remoteSnapshot () const;
   void yieldToDxFun ();
   void setWorkedBeforeState (bool ready, int recordCount, QString const& error);
