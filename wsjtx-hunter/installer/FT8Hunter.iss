@@ -1,5 +1,5 @@
 #define MyAppName "FT8 Hunter"
-#define MyAppVersion "2.0.2"
+#define MyAppVersion "2.0.3"
 #define MyAppPublisher "IU2JMZ"
 #define MainExe "wsjtx.exe"
 
@@ -19,12 +19,12 @@ AppId={{8C6C2DF1-CCB7-4E86-9850-1B8F60E7A100}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
-VersionInfoVersion=2.0.2.0
+VersionInfoVersion=2.0.3.0
 DefaultDirName={autopf}\FT8 Hunter
 DefaultGroupName=FT8 Hunter
 DisableProgramGroupPage=yes
 OutputDir=..\..\installer-output-wsjtx
-OutputBaseFilename=FT8Hunter_Setup_v2.0.2
+OutputBaseFilename=FT8Hunter_Setup_v2.0.3
 SetupIconFile={#AppIcon}
 Compression=lzma2
 SolidCompression=yes
@@ -33,7 +33,7 @@ PrivilegesRequired=admin
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 Uninstallable=yes
-UninstallDisplayName=FT8 Hunter 2.0.2
+UninstallDisplayName=FT8 Hunter 2.0.3
 UninstallDisplayIcon={app}\FT8Hunter.ico
 SetupLogging=yes
 
@@ -55,7 +55,7 @@ Name: "{autodesktop}\FT8 Hunter"; Filename: "{app}\bin\{#MainExe}"; WorkingDir: 
 
 [Run]
 Filename: "{tmp}\OmniRigSetup.exe"; Parameters: "/VERYSILENT /NORESTART"; StatusMsg: "Installazione OmniRig..."; Flags: waituntilterminated; Tasks: omnirig
-Filename: "{app}\bin\{#MainExe}"; Description: "Avvia FT8 Hunter 2.0.2"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\bin\{#MainExe}"; Description: "Avvia FT8 Hunter 2.0.3"; Flags: nowait postinstall skipifsilent
 
 [UninstallDelete]
 ; Solo se l'utente sceglie esplicitamente di rimuovere anche i dati personali.
