@@ -224,16 +224,15 @@ void HunterDashboard::refresh ()
   dxfun_->setText (moduleText (QStringLiteral ("DXFUN"), dxfun));
   psk_->setText (moduleText (QStringLiteral ("PSK"), psk));
 
-  for (auto pair : {
-         qMakePair (monitor_, monitor.value (QStringLiteral ("active")).toBool ()),
-         qMakePair (band_, band.value (QStringLiteral ("active")).toBool ()),
-         qMakePair (dxfun_, dxfun.value (QStringLiteral ("active")).toBool ()),
-         qMakePair (psk_, psk.value (QStringLiteral ("active")).toBool ())
-       })
-    {
-      pair.first->setProperty ("active", pair.second);
-      repolish (pair.first);
-    }
+  auto setModuleActive = [] (QLabel * label, bool active) {
+      if (!label) return;
+      label->setProperty ("active", active);
+      repolish (label);
+    };
+  setModuleActive (monitor_, monitor.value (QStringLiteral ("active")).toBool ());
+  setModuleActive (band_, band.value (QStringLiteral ("active")).toBool ());
+  setModuleActive (dxfun_, dxfun.value (QStringLiteral ("active")).toBool ());
+  setModuleActive (psk_, psk.value (QStringLiteral ("active")).toBool ());
 
   QString stateName = QStringLiteral ("idle");
   QString text = tr ("STANDBY");
