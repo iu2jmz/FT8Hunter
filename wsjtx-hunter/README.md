@@ -241,3 +241,21 @@ La Web App viene servita direttamente dal PC che esegue FT8 Hunter.
 
 Per accesso fuori dalla rete locale usare una VPN come Tailscale o WireGuard.
 Non esporre direttamente le porte HTTP/WebSocket di FT8 Hunter su Internet.
+
+
+## v2.1.0 - New Futuristic Styling
+
+La 2.1.0 introduce una nuova identita' visiva desktop mantenendo invariati motore WSJT-X,
+Hunter, Log4OM/MySQL, DXFun, PSK Reporter, Band Hunter e Remote.
+
+- nuovo tema **Dark Futuristic** come esperienza principale
+- nuovo tema **Light Futuristic** coordinato
+- applicazione della skin dopo il bootstrap per conservare il safe-start della 2.0.3
+- menu, pannelli, tabelle, controlli e scrollbar ridisegnati in stile console radio moderna
+- pulsanti operativi con gerarchia cromatica dedicata per RX Monitor, TX, STOP TX, TUNE e Decode
+- Monitor Hunter con banner di stato e card Target/TX/Progresso coerenti col tema
+- Band Hunter con stato e card banda/tempo/prossima banda
+- DXFun e PSK Reporter uniformati allo stesso linguaggio grafico
+- evidenziazioni dei decode in Dark Futuristic rimappate su tonalita' scure, mantenendo il significato cromatico senza fondi fluorescenti
+- scelta tema persistente da **Tools > FT8 Hunter > Aspetto 2.1**
+- branding Remote aggiornato a 2.1.0; il protocollo resta compatibile con il client Android 2.0.0
