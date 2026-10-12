@@ -258,10 +258,36 @@ void PskReporterPanel::setWorkedBeforeState (bool ready, int recordCount, QStrin
       .arg (workedBeforeRecords_));
 }
 
+bool PskReporterPanel::automaticEnabled () const
+{
+  return autoQsyCheck_->isChecked ();
+}
+
+bool PskReporterPanel::setAutomaticEnabled (bool enabled)
+{
+  if (enabled && !workedBeforeReady_) return false;
+  if (autoQsyCheck_->isChecked () != enabled)
+    autoQsyCheck_->setChecked (enabled);
+  return autoQsyCheck_->isChecked () == enabled;
+}
+
+bool PskReporterPanel::connectionEnabled () const
+{
+  return connectCheck_->isChecked ();
+}
+
+void PskReporterPanel::setConnectionEnabled (bool enabled)
+{
+  if (connectCheck_->isChecked () != enabled)
+    connectCheck_->setChecked (enabled);
+}
+
 QJsonObject PskReporterPanel::remoteSnapshot () const
 {
   QJsonObject out;
   out.insert (QStringLiteral ("active"), huntActive ());
+  out.insert (QStringLiteral ("automatic"), automaticEnabled ());
+  out.insert (QStringLiteral ("connectionEnabled"), connectionEnabled ());
   out.insert (QStringLiteral ("connected"), client_ && client_->connected ());
   out.insert (QStringLiteral ("workedBeforeReady"), workedBeforeReady_);
   out.insert (QStringLiteral ("workedBeforeRecords"), workedBeforeRecords_);
