@@ -5,6 +5,7 @@
 #include <QCloseEvent>
 #include <QFont>
 #include <QHeaderView>
+#include <QJsonArray>
 #include <QHBoxLayout>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -270,6 +271,24 @@ QJsonObject PskReporterPanel::remoteSnapshot () const
   out.insert (QStringLiteral ("status"), active_.request.status);
   out.insert (QStringLiteral ("reports"), static_cast<double> (reports_));
   out.insert (QStringLiteral ("candidates"), static_cast<double> (candidateReports_));
+
+  QJsonArray recent;
+  auto const count = qMin (20, table_->rowCount ());
+  for (int row = 0; row < count; ++row)
+    {
+      QJsonObject report;
+      report.insert (QStringLiteral ("utc"), table_->item (row, 0) ? table_->item (row, 0)->text () : QString {});
+      report.insert (QStringLiteral ("call"), table_->item (row, 1) ? table_->item (row, 1)->text () : QString {});
+      report.insert (QStringLiteral ("mhz"), table_->item (row, 2) ? table_->item (row, 2)->text () : QString {});
+      report.insert (QStringLiteral ("band"), table_->item (row, 3) ? table_->item (row, 3)->text () : QString {});
+      report.insert (QStringLiteral ("mode"), table_->item (row, 4) ? table_->item (row, 4)->text () : QString {});
+      report.insert (QStringLiteral ("snr"), table_->item (row, 5) ? table_->item (row, 5)->text () : QString {});
+      report.insert (QStringLiteral ("country"), table_->item (row, 6) ? table_->item (row, 6)->text () : QString {});
+      report.insert (QStringLiteral ("status"), table_->item (row, 7) ? table_->item (row, 7)->text () : QString {});
+      report.insert (QStringLiteral ("reporter"), table_->item (row, 8) ? table_->item (row, 8)->text () : QString {});
+      recent.append (report);
+    }
+  out.insert (QStringLiteral ("recent"), recent);
   return out;
 }
 
