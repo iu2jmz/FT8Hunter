@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory=$true)][string]$SourceDir,
-    [string]$HunterVersion = "2.2.1"
+    [string]$HunterVersion = "2.2.2"
 )
 
 $ErrorActionPreference = "Stop"
@@ -2170,20 +2170,21 @@ Replace-Required "widgets/mainwindow.cpp" @'
                   return reply;
                 }
 
+              // Usa la stessa strada nativa impiegata dal Band Hunter:
+              // setCurrentIndex() da solo non emette activated(), quindi la
+              // radio poteva restare sulla banda precedente anche se la UI
+              // remota mostrava il comando come accettato.
               ui->pbBandHopping->setChecked (false);
               ui->bandComboBox->setCurrentIndex (row);
-              m_bandEdited = true;
-              band_changed (targetHz);
-              m_wideGraph->setRxBand (requestedBand);
-              setRig (targetHz);
-              setXIT (ui->TxFreqSpinBox->value (), targetHz);
+              on_bandComboBox_activated (row);
               monitor (true);
 
               ok (
-                tr ("Banda %1 - %2")
+                tr ("Banda %1 - %2 | %3")
                   .arg (requestedBand)
                   .arg (m_mode == QStringLiteral ("FT4")
-                          ? QStringLiteral ("FT4") : QStringLiteral ("FT8")));
+                          ? QStringLiteral ("FT4") : QStringLiteral ("FT8"))
+                  .arg (Radio::pretty_frequency_MHz_string (targetHz)));
             }
         }
       else if (name == QStringLiteral ("set_frequency"))
@@ -2785,3 +2786,6 @@ Write-Host "Applied FT8 Hunter $HunterVersion Dark Futuristic adaptive decode co
 
 
 Write-Host "Applied FT8 Hunter $HunterVersion Advanced UI Live Console dashboard."
+
+
+Write-Host "Applied FT8 Hunter $HunterVersion 2.2.2 remote manual band native QSY fix."
