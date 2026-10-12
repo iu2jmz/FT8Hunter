@@ -594,6 +594,29 @@ bool DxFunClusterPanel::huntActive () const
   return huntState_ != HuntState::Idle;
 }
 
+bool DxFunClusterPanel::automaticEnabled () const
+{
+  return autoQsyButton_->isChecked ();
+}
+
+bool DxFunClusterPanel::setAutomaticEnabled (bool enabled)
+{
+  if (autoQsyButton_->isChecked () != enabled)
+    autoQsyButton_->setChecked (enabled);
+  return autoQsyButton_->isChecked () == enabled;
+}
+
+bool DxFunClusterPanel::connectionEnabled () const
+{
+  return connectButton_->isChecked ();
+}
+
+void DxFunClusterPanel::setConnectionEnabled (bool enabled)
+{
+  if (connectButton_->isChecked () != enabled)
+    connectButton_->setChecked (enabled);
+}
+
 QJsonObject DxFunClusterPanel::remoteSnapshot () const
 {
   QString state = QStringLiteral ("IDLE");
@@ -608,6 +631,8 @@ QJsonObject DxFunClusterPanel::remoteSnapshot () const
 
   QJsonObject out;
   out.insert (QStringLiteral ("active"), huntActive ());
+  out.insert (QStringLiteral ("automatic"), automaticEnabled ());
+  out.insert (QStringLiteral ("connected"), connectionEnabled ());
   out.insert (QStringLiteral ("state"), state);
   out.insert (QStringLiteral ("target"), active_.request.callsign);
   out.insert (QStringLiteral ("band"), active_.request.band);
