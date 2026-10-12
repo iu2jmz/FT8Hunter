@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory=$true)][string]$SourceDir,
-    [string]$HunterVersion = "2.2.2"
+    [string]$HunterVersion = "2.2.3"
 )
 
 $ErrorActionPreference = "Stop"
@@ -1957,7 +1957,7 @@ Replace-Required "widgets/mainwindow.cpp" @'
   // FT8 Hunter 2.2.0: Advanced UI applicata dopo il bootstrap.
   // Manteniamo il safe-start della 2.0.3 e applichiamo la skin solo quando
   // la MainWindow e tutti i pannelli Hunter sono gia' stati costruiti.
-  HunterStartupTrace::write (QStringLiteral ("MainWindow: entered 2.2.1 integration"));
+  HunterStartupTrace::write (QStringLiteral ("MainWindow: entered 2.2.3 integration"));
   auto applyHunterTheme = [this] (HunterTheme::Mode mode) {
       HunterStartupTrace::write (
         QStringLiteral ("Theme: applying %1").arg (HunterTheme::name (mode)));
@@ -1995,7 +1995,7 @@ Replace-Required "widgets/mainwindow.cpp" @'
   auto remoteStateProvider =
     [this, monitorHunterPanel, bandHunterPanel, pskReporterPanel] () -> QJsonObject {
       QJsonObject state;
-      state.insert (QStringLiteral ("version"), QStringLiteral ("2.2.1"));
+      state.insert (QStringLiteral ("version"), QStringLiteral ("2.2.3"));
       state.insert (QStringLiteral ("myCall"), m_config.my_callsign ());
       state.insert (QStringLiteral ("frequencyHz"), static_cast<double> (m_freqNominal));
       state.insert (QStringLiteral ("band"), m_currentBand);
@@ -2428,7 +2428,7 @@ Replace-Required "widgets/mainwindow.cpp" @'
         }
     });
 
-  auto * remoteAction = hunterMenu->addAction (tr ("FT8 Hunter Remote 2.2.1..."));
+  auto * remoteAction = hunterMenu->addAction (tr ("FT8 Hunter Remote 2.2.3..."));
   connect (remoteAction, &QAction::triggered, this, [this, ensureRemoteServer] {
       HunterStartupTrace::write (QStringLiteral ("Remote: settings dialog requested"));
       auto settings = HunterRemoteServer::loadSettings ();
@@ -2466,7 +2466,7 @@ Replace-Required "widgets/mainwindow.cpp" @'
         }
     });
 
-  HunterStartupTrace::write (QStringLiteral ("MainWindow: 2.2.1 integration complete"));
+  HunterStartupTrace::write (QStringLiteral ("MainWindow: 2.2.3 integration complete"));
 
   // FT8 Hunter: aggiorna automaticamente Worked Before da Log4OM.
 '@
@@ -2788,4 +2788,4 @@ Write-Host "Applied FT8 Hunter $HunterVersion Dark Futuristic adaptive decode co
 Write-Host "Applied FT8 Hunter $HunterVersion Advanced UI Live Console dashboard."
 
 
-Write-Host "Applied FT8 Hunter $HunterVersion 2.2.2 remote manual band native QSY fix."
+Write-Host "Applied FT8 Hunter $HunterVersion 2.2.3 remote manual band native QSY + UI selector fix."
