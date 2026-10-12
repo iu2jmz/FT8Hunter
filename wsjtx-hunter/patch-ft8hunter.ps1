@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory=$true)][string]$SourceDir,
-    [string]$HunterVersion = "2.0.3"
+    [string]$HunterVersion = "2.1.0"
 )
 
 $ErrorActionPreference = "Stop"
@@ -1950,9 +1950,10 @@ Replace-Required "widgets/mainwindow.cpp" @'
       pskReporterPanel->openWindow ();
     });
 
-  // FT8 Hunter 2.0.1 safe-start: il tema viene applicato solo dopo
-  // l'apertura, su scelta esplicita dell'operatore.
-  HunterStartupTrace::write (QStringLiteral ("MainWindow: entered 2.0.1 integration"));
+  // FT8 Hunter 2.1.0: tema Futuristic applicato dopo il bootstrap.
+  // Manteniamo il safe-start della 2.0.3 e applichiamo la skin solo quando
+  // la MainWindow e tutti i pannelli Hunter sono gia' stati costruiti.
+  HunterStartupTrace::write (QStringLiteral ("MainWindow: entered 2.1.0 integration"));
   auto applyHunterTheme = [this] (HunterTheme::Mode mode) {
       HunterStartupTrace::write (
         QStringLiteral ("Theme: applying %1").arg (HunterTheme::name (mode)));
@@ -1967,26 +1968,30 @@ Replace-Required "widgets/mainwindow.cpp" @'
     QStringLiteral ("Theme: saved preference %1, deferred")
       .arg (HunterTheme::name (savedHunterTheme)));
 
-  auto * appearanceMenu = hunterMenu->addMenu (tr ("Aspetto 2.0"));
-  auto * darkThemeAction = appearanceMenu->addAction (tr ("Dark"));
-  auto * lightThemeAction = appearanceMenu->addAction (tr ("Light"));
+  auto * appearanceMenu = hunterMenu->addMenu (tr ("Aspetto 2.1"));
+  auto * darkThemeAction = appearanceMenu->addAction (tr ("Dark Futuristic"));
+  auto * lightThemeAction = appearanceMenu->addAction (tr ("Light Futuristic"));
   darkThemeAction->setCheckable (true);
   lightThemeAction->setCheckable (true);
   auto * themeGroup = new QActionGroup {appearanceMenu};
   themeGroup->setExclusive (true);
   themeGroup->addAction (darkThemeAction);
   themeGroup->addAction (lightThemeAction);
-  darkThemeAction->setChecked (false);
-  lightThemeAction->setChecked (false);
+  darkThemeAction->setChecked (savedHunterTheme == HunterTheme::Mode::Dark);
+  lightThemeAction->setChecked (savedHunterTheme == HunterTheme::Mode::Light);
   connect (darkThemeAction, &QAction::triggered, this,
            [applyHunterTheme] { applyHunterTheme (HunterTheme::Mode::Dark); });
   connect (lightThemeAction, &QAction::triggered, this,
            [applyHunterTheme] { applyHunterTheme (HunterTheme::Mode::Light); });
 
+  QTimer::singleShot (450, this, [applyHunterTheme, savedHunterTheme] {
+      applyHunterTheme (savedHunterTheme);
+    });
+
   auto remoteStateProvider =
     [this, monitorHunterPanel, bandHunterPanel, pskReporterPanel] () -> QJsonObject {
       QJsonObject state;
-      state.insert (QStringLiteral ("version"), QStringLiteral ("2.0.3"));
+      state.insert (QStringLiteral ("version"), QStringLiteral ("2.1.0"));
       state.insert (QStringLiteral ("myCall"), m_config.my_callsign ());
       state.insert (QStringLiteral ("frequencyHz"), static_cast<double> (m_freqNominal));
       state.insert (QStringLiteral ("band"), m_currentBand);
@@ -2335,7 +2340,7 @@ Replace-Required "widgets/mainwindow.cpp" @'
         }
     });
 
-  auto * remoteAction = hunterMenu->addAction (tr ("FT8 Hunter Remote 2.0.3..."));
+  auto * remoteAction = hunterMenu->addAction (tr ("FT8 Hunter Remote 2.1.0..."));
   connect (remoteAction, &QAction::triggered, this, [this, ensureRemoteServer] {
       HunterStartupTrace::write (QStringLiteral ("Remote: settings dialog requested"));
       auto settings = HunterRemoteServer::loadSettings ();
@@ -2373,7 +2378,7 @@ Replace-Required "widgets/mainwindow.cpp" @'
         }
     });
 
-  HunterStartupTrace::write (QStringLiteral ("MainWindow: 2.0.1 integration complete"));
+  HunterStartupTrace::write (QStringLiteral ("MainWindow: 2.1.0 integration complete"));
 
   // FT8 Hunter: aggiorna automaticamente Worked Before da Log4OM.
 '@
