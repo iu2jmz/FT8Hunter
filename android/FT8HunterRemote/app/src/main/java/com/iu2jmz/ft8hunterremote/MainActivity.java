@@ -112,7 +112,7 @@ public final class MainActivity extends Activity {
         title.setGravity(Gravity.CENTER);
         root.addView(title);
 
-        TextView call = label("IU2JMZ  ·  2.0.0", 15, CYAN, true);
+        TextView call = label("IU2JMZ  ·  2.2.2", 15, CYAN, true);
         call.setGravity(Gravity.CENTER);
         LinearLayout.LayoutParams callLp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
@@ -196,7 +196,7 @@ public final class MainActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT, dp(52)));
 
         TextView help = label(
-                "Sul PC: Tools → FT8 Hunter → FT8 Hunter Remote 2.0.0. " +
+                "Sul PC: Tools → FT8 Hunter → FT8 Hunter Remote 2.2.x. " +
                 "Attiva l'accesso LAN/VPN, quindi usa qui l'indirizzo e il token mostrati dal programma.",
                 12, MUTED, false);
         help.setGravity(Gravity.CENTER);
@@ -249,7 +249,7 @@ public final class MainActivity extends Activity {
         settings.setAllowFileAccess(false);
         settings.setMediaPlaybackRequiresUserGesture(true);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
-        settings.setUserAgentString(settings.getUserAgentString() + " FT8HunterRemote/2.0.0");
+        settings.setUserAgentString(settings.getUserAgentString() + " FT8HunterRemote/2.2.2");
 
         webView.setWebChromeClient(new WebChromeClient());
         webView.setWebViewClient(new WebViewClient() {
