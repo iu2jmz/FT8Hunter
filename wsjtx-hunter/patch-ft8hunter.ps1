@@ -1870,3 +1870,329 @@ Replace-Required "widgets/mainwindow.cpp" @'
 '@
 
 Write-Host "Applied FT8 Hunter $HunterVersion branding + PSK Reporter local-CQ gate + Log4OM readiness gate."
+
+
+# ---------------------------------------------------------------------------
+# FT8 Hunter 2.0.0 - New Styling + FT8 Hunter Remote
+# ---------------------------------------------------------------------------
+
+Copy-Item "wsjtx-hunter/ui/HunterTheme.hpp" (Join-Path $hunterDir "HunterTheme.hpp") -Force
+Copy-Item "wsjtx-hunter/ui/HunterTheme.cpp" (Join-Path $hunterDir "HunterTheme.cpp") -Force
+Copy-Item "wsjtx-hunter/remote/HunterRemoteServer.hpp" (Join-Path $hunterDir "HunterRemoteServer.hpp") -Force
+Copy-Item "wsjtx-hunter/remote/HunterRemoteServer.cpp" (Join-Path $hunterDir "HunterRemoteServer.cpp") -Force
+Copy-Item "wsjtx-hunter/remote/HunterRemoteDialog.hpp" (Join-Path $hunterDir "HunterRemoteDialog.hpp") -Force
+Copy-Item "wsjtx-hunter/remote/HunterRemoteDialog.cpp" (Join-Path $hunterDir "HunterRemoteDialog.cpp") -Force
+
+Replace-Required "CMakeLists.txt" @'
+  FT8Hunter/PskReporterMqtt.cpp
+  FT8Hunter/PskReporterPanel.cpp
+  Configuration.cpp
+'@ @'
+  FT8Hunter/PskReporterMqtt.cpp
+  FT8Hunter/PskReporterPanel.cpp
+  FT8Hunter/HunterTheme.cpp
+  FT8Hunter/HunterRemoteServer.cpp
+  FT8Hunter/HunterRemoteDialog.cpp
+  Configuration.cpp
+'@
+
+Replace-Required "widgets/mainwindow.cpp" @'
+#include "FT8Hunter/PskReporterPanel.hpp"
+'@ @'
+#include "FT8Hunter/PskReporterPanel.hpp"
+#include "FT8Hunter/HunterTheme.hpp"
+#include "FT8Hunter/HunterRemoteServer.hpp"
+#include "FT8Hunter/HunterRemoteDialog.hpp"
+#include <QJsonArray>
+'@
+
+# Stato RF mostrato nell'app remota.
+Replace-Required "widgets/mainwindow.h" @'
+  int m_monitorHunterPreviousTxFreq {0};
+  QScopedPointer<EchoGraph> m_echoGraph;
+'@ @'
+  int m_monitorHunterPreviousTxFreq {0};
+  int m_hunterRemoteRfPower {-1};
+  QScopedPointer<EchoGraph> m_echoGraph;
+'@
+
+# Integra tema e server remoto dopo che tutti i pannelli Hunter sono stati creati.
+Replace-Required "widgets/mainwindow.cpp" @'
+  auto * pskReporterAction =
+    hunterMenu->addAction (tr ("PSK Reporter..."));
+  connect (pskReporterAction, &QAction::triggered, [pskReporterPanel] {
+      pskReporterPanel->openWindow ();
+    });
+
+  // FT8 Hunter: aggiorna automaticamente Worked Before da Log4OM.
+'@ @'
+  auto * pskReporterAction =
+    hunterMenu->addAction (tr ("PSK Reporter..."));
+  connect (pskReporterAction, &QAction::triggered, [pskReporterPanel] {
+      pskReporterPanel->openWindow ();
+    });
+
+  // FT8 Hunter 2.0: styling coerente PC/app con scelta Dark/Light.
+  auto applyHunterTheme = [this] (HunterTheme::Mode mode) {
+      HunterTheme::save (m_settings, mode);
+      HunterTheme::apply (qApp, mode);
+    };
+  auto const savedHunterTheme = HunterTheme::load (m_settings);
+  HunterTheme::apply (qApp, savedHunterTheme);
+
+  auto * appearanceMenu = hunterMenu->addMenu (tr ("Aspetto 2.0"));
+  auto * darkThemeAction = appearanceMenu->addAction (tr ("Dark"));
+  auto * lightThemeAction = appearanceMenu->addAction (tr ("Light"));
+  darkThemeAction->setCheckable (true);
+  lightThemeAction->setCheckable (true);
+  auto * themeGroup = new QActionGroup {appearanceMenu};
+  themeGroup->setExclusive (true);
+  themeGroup->addAction (darkThemeAction);
+  themeGroup->addAction (lightThemeAction);
+  darkThemeAction->setChecked (savedHunterTheme == HunterTheme::Mode::Dark);
+  lightThemeAction->setChecked (savedHunterTheme == HunterTheme::Mode::Light);
+  connect (darkThemeAction, &QAction::triggered, this,
+           [applyHunterTheme] { applyHunterTheme (HunterTheme::Mode::Dark); });
+  connect (lightThemeAction, &QAction::triggered, this,
+           [applyHunterTheme] { applyHunterTheme (HunterTheme::Mode::Light); });
+
+  auto remoteStateProvider =
+    [this, monitorHunterPanel, bandHunterPanel, pskReporterPanel] () -> QJsonObject {
+      QJsonObject state;
+      state.insert (QStringLiteral ("version"), QStringLiteral ("2.0.0"));
+      state.insert (QStringLiteral ("myCall"), m_config.my_callsign ());
+      state.insert (QStringLiteral ("frequencyHz"), static_cast<double> (m_freqNominal));
+      state.insert (QStringLiteral ("band"), m_currentBand);
+      state.insert (QStringLiteral ("mode"), m_mode);
+      state.insert (QStringLiteral ("rxOffset"), ui->RxFreqSpinBox->value ());
+      state.insert (QStringLiteral ("txOffset"), ui->TxFreqSpinBox->value ());
+      state.insert (QStringLiteral ("monitoring"), m_monitoring);
+      state.insert (QStringLiteral ("transmitting"), m_transmitting);
+      state.insert (QStringLiteral ("autoTx"), m_auto);
+      state.insert (QStringLiteral ("tune"), m_tune);
+      if (m_hunterRemoteRfPower >= 0)
+        state.insert (QStringLiteral ("rfPower"), m_hunterRemoteRfPower);
+
+      state.insert (QStringLiteral ("monitorHunter"), monitorHunterPanel->remoteSnapshot ());
+      state.insert (QStringLiteral ("bandHunter"), bandHunterPanel->remoteSnapshot ());
+      state.insert (QStringLiteral ("dxFun"),
+                    g_dxFunPanel ? g_dxFunPanel->remoteSnapshot () : QJsonObject {});
+      state.insert (QStringLiteral ("pskReporter"), pskReporterPanel->remoteSnapshot ());
+      state.insert (QStringLiteral ("blacklist"), monitorHunterPanel->blacklistSnapshot ());
+      return state;
+    };
+
+  auto remoteSpectrumProvider = [this] () -> QJsonObject {
+      QJsonObject out;
+      out.insert (QStringLiteral ("startHz"), 500);
+      out.insert (QStringLiteral ("endHz"), 2400);
+      QJsonArray values;
+      auto const samples = m_wideGraph->hunterRemoteSpectrum (256);
+      for (auto const sample : samples)
+        values.append (static_cast<double> (sample));
+      out.insert (QStringLiteral ("values"), values);
+      return out;
+    };
+
+  auto remoteCommandHandler =
+    [this, monitorHunterPanel, bandHunterPanel]
+    (QJsonObject const& command, bool allowTransmit) -> QJsonObject {
+      QJsonObject reply;
+      auto ok = [&reply] (QString const& message) {
+          reply.insert (QStringLiteral ("ok"), true);
+          reply.insert (QStringLiteral ("message"), message);
+        };
+      auto fail = [&reply] (QString const& message) {
+          reply.insert (QStringLiteral ("ok"), false);
+          reply.insert (QStringLiteral ("message"), message);
+        };
+
+      auto const name = command.value (QStringLiteral ("name")).toString ();
+
+      if (name == QStringLiteral ("refresh"))
+        {
+          ok (tr ("Stato aggiornato"));
+        }
+      else if (name == QStringLiteral ("stop_tx"))
+        {
+          if (m_auto) auto_tx_mode (false);
+          if (m_transmitting) ui->stopTxButton->click ();
+          ok (tr ("TX arrestata"));
+        }
+      else if (name == QStringLiteral ("monitor"))
+        {
+          monitor (command.value (QStringLiteral ("enabled")).toBool (true));
+          ok (tr ("Monitor aggiornato"));
+        }
+      else if (name == QStringLiteral ("set_mode"))
+        {
+          if (m_transmitting || m_tune)
+            {
+              fail (tr ("Modo non modificabile durante TX/Tune"));
+            }
+          else
+            {
+              auto const mode = command.value (QStringLiteral ("mode")).toString ().toUpper ();
+              if (mode == QStringLiteral ("FT8"))
+                on_actionFT8_triggered ();
+              else if (mode == QStringLiteral ("FT4"))
+                on_actionFT4_triggered ();
+              else
+                {
+                  fail (tr ("Modo remoto consentito: FT8 o FT4"));
+                  return reply;
+                }
+              ok (tr ("Modo %1").arg (mode));
+            }
+        }
+      else if (name == QStringLiteral ("set_frequency"))
+        {
+          if (m_transmitting || m_tune || m_auto)
+            {
+              fail (tr ("QSY non disponibile durante TX/Tune/Auto"));
+            }
+          else
+            {
+              auto const hz = static_cast<Frequency> (
+                command.value (QStringLiteral ("frequencyHz")).toDouble ());
+              if (hz < 1000000 || hz > 60000000)
+                {
+                  fail (tr ("Frequenza fuori intervallo"));
+                  return reply;
+                }
+
+              auto const row = m_config.frequencies ()->best_working_frequency (hz);
+              if (row < 0)
+                {
+                  fail (tr ("Nessuna working frequency compatibile"));
+                  return reply;
+                }
+
+              ui->pbBandHopping->setChecked (false);
+              ui->bandComboBox->setCurrentIndex (row);
+              m_bandEdited = true;
+              band_changed (hz);
+              m_wideGraph->setRxBand (m_config.bands ()->find (hz));
+              setRig (hz);
+              setXIT (ui->TxFreqSpinBox->value (), hz);
+              monitor (true);
+              ok (tr ("QSY eseguita"));
+            }
+        }
+      else if (name == QStringLiteral ("set_rx_offset"))
+        {
+          auto value = command.value (QStringLiteral ("value")).toInt ();
+          value = qBound (ui->RxFreqSpinBox->minimum (), value, ui->RxFreqSpinBox->maximum ());
+          ui->RxFreqSpinBox->setValue (value);
+          ok (tr ("RX %1 Hz").arg (value));
+        }
+      else if (name == QStringLiteral ("set_tx_offset"))
+        {
+          auto value = command.value (QStringLiteral ("value")).toInt ();
+          value = qBound (500, value, 2400);
+          ui->TxFreqSpinBox->setValue (value);
+          ok (tr ("TX %1 Hz").arg (value));
+        }
+      else if (name == QStringLiteral ("set_power"))
+        {
+          auto value = qBound (5, command.value (QStringLiteral ("value")).toInt (), 100);
+          m_config.transceiver_rf_power_percent (value);
+          m_hunterRemoteRfPower = value;
+          ok (tr ("RF Power %1%").arg (value));
+        }
+      else if (name == QStringLiteral ("monitor_hunter_auto"))
+        {
+          auto const enabled = command.value (QStringLiteral ("enabled")).toBool ();
+          if (enabled && !allowTransmit)
+            {
+              fail (tr ("TX remota non autorizzata nelle impostazioni PC"));
+            }
+          else if (!monitorHunterPanel->setAutomaticEnabled (enabled))
+            {
+              fail (tr ("Monitor Hunter non disponibile: verificare filtro DXCC"));
+            }
+          else
+            {
+              ok (enabled ? tr ("Monitor Hunter AUTO attivo") : tr ("Monitor Hunter AUTO disattivo"));
+            }
+        }
+      else if (name == QStringLiteral ("band_hunter"))
+        {
+          auto const enabled = command.value (QStringLiteral ("enabled")).toBool ();
+          if (enabled && !allowTransmit)
+            {
+              fail (tr ("TX remota non autorizzata nelle impostazioni PC"));
+            }
+          else if (!bandHunterPanel->setActive (enabled))
+            {
+              fail (tr ("Impossibile cambiare stato Band Hunter"));
+            }
+          else
+            {
+              ok (enabled ? tr ("Band Hunter attivo") : tr ("Band Hunter disattivo"));
+            }
+        }
+      else if (name == QStringLiteral ("blacklist_reinstate"))
+        {
+          auto const call = command.value (QStringLiteral ("call")).toString ();
+          if (monitorHunterPanel->reinstateCall (call))
+            ok (tr ("%1 riabilitata").arg (call));
+          else
+            fail (tr ("Nominativo non presente in blacklist"));
+        }
+      else
+        {
+          fail (tr ("Comando remoto non riconosciuto"));
+        }
+
+      return reply;
+    };
+
+  auto * remoteServer = new HunterRemoteServer {
+    remoteStateProvider, remoteSpectrumProvider, remoteCommandHandler, this};
+
+  auto remoteSettings = HunterRemoteServer::loadSettings ();
+  HunterRemoteServer::saveSettings (remoteSettings);
+  if (remoteSettings.enabled)
+    {
+      QString error;
+      if (!remoteServer->start (remoteSettings, &error))
+        showStatusMessage (tr ("FT8 Hunter Remote non avviato: %1").arg (error));
+    }
+
+  auto * remoteAction = hunterMenu->addAction (tr ("FT8 Hunter Remote 2.0.0..."));
+  connect (remoteAction, &QAction::triggered, this, [this, remoteServer] {
+      auto settings = HunterRemoteServer::loadSettings ();
+      HunterRemoteDialog dlg {settings, this};
+      if (QDialog::Accepted != dlg.exec ()) return;
+
+      settings = dlg.settings ();
+      HunterRemoteServer::saveSettings (settings);
+      remoteServer->stop ();
+
+      if (settings.enabled)
+        {
+          QString error;
+          if (!remoteServer->start (settings, &error))
+            {
+              MessageBox::warning_message (
+                this, tr ("FT8 Hunter Remote"),
+                tr ("Impossibile avviare il server remoto: %1").arg (error));
+            }
+          else
+            {
+              showStatusMessage (
+                tr ("FT8 Hunter Remote attivo: %1")
+                  .arg (HunterRemoteServer::appUrl (settings)));
+            }
+        }
+      else
+        {
+          showStatusMessage (tr ("FT8 Hunter Remote disattivato"));
+        }
+    });
+
+  // FT8 Hunter: aggiorna automaticamente Worked Before da Log4OM.
+'@
+
+Write-Host "Applied FT8 Hunter $HunterVersion 2.0 styling + authenticated Remote PWA server."
