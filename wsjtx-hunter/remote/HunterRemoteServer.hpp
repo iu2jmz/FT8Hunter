@@ -15,7 +15,7 @@ class QWebSocketServer;
 struct HunterRemoteSettings
 {
   bool enabled {false};
-  bool lanAccess {true};
+  bool lanAccess {false};
   bool allowTransmit {false};
   quint16 httpPort {8787};
   quint16 webSocketPort {8788};
