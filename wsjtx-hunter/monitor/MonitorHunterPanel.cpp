@@ -564,6 +564,74 @@ bool MonitorHunterPanel::enqueueExternalCandidate (MonitorHunterCandidate const&
   return true;
 }
 
+QJsonArray MonitorHunterPanel::blacklistSnapshot () const
+{
+  QJsonArray rows;
+  auto const now = QDateTime::currentDateTimeUtc ();
+  QStringList calls = blacklist_.keys ();
+  calls.sort ();
+  for (auto const& call : calls)
+    {
+      auto const entry = blacklist_.value (call);
+      if (!entry.untilUtc.isValid () || now >= entry.untilUtc) continue;
+      auto seconds = qMax<qint64> (0, now.secsTo (entry.untilUtc));
+      QJsonObject row;
+      row.insert (QStringLiteral ("call"), call);
+      row.insert (QStringLiteral ("band"), entry.band);
+      row.insert (QStringLiteral ("remainingSeconds"), static_cast<double> (seconds));
+      row.insert (QStringLiteral ("remaining"),
+                  QStringLiteral ("%1:%2:%3")
+                    .arg (seconds / 3600, 2, 10, QLatin1Char ('0'))
+                    .arg ((seconds % 3600) / 60, 2, 10, QLatin1Char ('0'))
+                    .arg (seconds % 60, 2, 10, QLatin1Char ('0')));
+      rows.append (row);
+    }
+  return rows;
+}
+
+bool MonitorHunterPanel::reinstateCall (QString const& call)
+{
+  auto const key = call.trimmed ().toUpper ();
+  if (!blacklist_.contains (key)) return false;
+  blacklist_.remove (key);
+  cooldownUntil_.remove (key);
+  saveBlacklist ();
+  updateBlacklistWindow ();
+  updateSummary ();
+  return true;
+}
+
+QJsonObject MonitorHunterPanel::remoteSnapshot () const
+{
+  QString state = QStringLiteral ("IDLE");
+  switch (state_)
+    {
+    case HuntState::Calling: state = QStringLiteral ("CALLING"); break;
+    case HuntState::Busy: state = QStringLiteral ("DX OCCUPATO"); break;
+    case HuntState::Qso: state = QStringLiteral ("QSO"); break;
+    case HuntState::Idle: break;
+    }
+
+  QJsonObject out;
+  out.insert (QStringLiteral ("state"), state);
+  out.insert (QStringLiteral ("automatic"), automaticEnabled ());
+  out.insert (QStringLiteral ("active"), huntActive ());
+  out.insert (QStringLiteral ("target"), active_.callsign);
+  out.insert (QStringLiteral ("country"), active_.country);
+  out.insert (QStringLiteral ("band"), active_.band);
+  out.insert (QStringLiteral ("rxOffset"), active_.audioOffset);
+  out.insert (QStringLiteral ("txOffset"), lockedTxOffset_);
+  out.insert (QStringLiteral ("power"), lastPowerPercent_);
+  out.insert (QStringLiteral ("answered"), watchdog_.answered ());
+  out.insert (QStringLiteral ("calls"), watchdog_.callingTransmissions ());
+  out.insert (QStringLiteral ("progress"),
+              QStringLiteral ("%1/%2")
+                .arg (watchdog_.callingTransmissions ())
+                .arg (HunterQsoWatchdog::MaxCallingTransmissions));
+  out.insert (QStringLiteral ("blacklistCount"), blacklist_.size ());
+  return out;
+}
+
 int MonitorHunterPanel::nextTxPowerPercent (QString const& txMessage)
 {
   if (!qsoActive ()) return -1;
