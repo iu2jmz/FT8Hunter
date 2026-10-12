@@ -287,3 +287,23 @@ senza modificare il motore FT8/FT4, le logiche Hunter o la sicurezza introdotta 
 - branding e protocol version aggiornati a 2.2.0
 - restano token, LAN/VPN, HTTP/WebSocket, controllo TX separatamente autorizzabile
 - il client Android 2.0.0 resta compatibile col protocollo corrente
+
+
+## v2.2.1 - Remote persistente e bande manuali
+
+Aggiornamento coordinato PC + Android Remote.
+
+### Connessione persistente Android
+- servizio Android in foreground attivo finche' l'utente non preme **Disconnetti**
+- wake lock CPU e Wi-Fi high performance per mantenere viva la sessione anche con app in secondo piano o schermo spento
+- WebSocket con ping periodico e riconnessione automatica dopo perdita temporanea della rete
+- tornando nell'app viene verificata e ripristinata immediatamente la connessione
+- il tasto Back porta l'app in secondo piano senza disconnetterla
+- la disconnessione esplicita ferma servizio, wake lock e sessione Remote
+
+### Bande manuali Remote
+- nuova griglia di tasti: **80 / 60 / 40 / 30 / 20 / 17 / 15 / 12 / 10 m**
+- il telefono invia il nome banda al PC
+- FT8 Hunter seleziona la working frequency configurata sul PC per il modo corrente FT8 o FT4 e per la regione attiva
+- il cambio manuale e' bloccato durante TX, Tune, Auto o Hunter attivi
+- la banda corrente viene evidenziata nell'app
