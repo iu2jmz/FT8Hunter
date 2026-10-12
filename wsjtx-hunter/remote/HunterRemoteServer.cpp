@@ -1,4 +1,6 @@
 #include "HunterRemoteServer.hpp"
+#include <QStringList>
+#include <utility>
 
 #include <QCoreApplication>
 #include <QDir>
