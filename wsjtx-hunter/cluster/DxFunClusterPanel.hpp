@@ -3,6 +3,7 @@
 #include <QDockWidget>
 #include <QDateTime>
 #include <QHash>
+#include <QJsonObject>
 #include <QString>
 #include <QVariant>
 #include <functional>
@@ -78,6 +79,7 @@ public:
                               QString const& myCall);
   bool qsoActive () const;
   bool huntActive () const;
+  QJsonObject remoteSnapshot () const;
   int nextTxPowerPercent (QString const& txMessage);
   void transmissionExhausted ();
   void qsoLogged (QString const& call);
