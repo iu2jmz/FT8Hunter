@@ -5,11 +5,13 @@
 #include <QGridLayout>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QPair>
 #include <QJsonValue>
 #include <QStyle>
 #include <QTimer>
 #include <QVBoxLayout>
 #include <QWidget>
+#include <utility>
 
 namespace
 {
