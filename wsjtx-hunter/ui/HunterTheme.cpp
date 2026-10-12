@@ -252,6 +252,23 @@ QPushButton#HunterAccentButton:hover{background:#12475e;border-color:#4de0ff;}
 QPushButton#HunterDangerButton{background:#321923;color:#ff9aae;border-color:#7e384d;font-weight:700;}
 QPushButton#HunterDangerButton:hover{background:#4c1d2d;color:white;border-color:#ff5d7e;}
 QPushButton#HunterSecondaryButton{background:#0b202d;color:#a9cfdb;border-color:#254858;}
+
+QDockWidget#FT8HunterDashboard{border:1px solid #1a4b60;background:#06131d;}
+QDockWidget#FT8HunterDashboard::title{background:#081b27;color:#59dcff;border-bottom:1px solid #17465a;padding:6px 10px;font-weight:800;letter-spacing:1px;}
+QWidget#HunterDashboardBody{background:qlineargradient(x1:0,y1:0,x2:1,y2:0,stop:0 #06131d,stop:0.45 #071a25,stop:1 #06131d);}
+QLabel#HunterDashboardCall{color:#69e7ff;letter-spacing:1px;padding:3px 6px;}
+QLabel#HunterDashboardFrequency{color:#effcff;background:#041019;border:1px solid #174b61;border-radius:10px;padding:5px 16px;font-family:"Consolas","Segoe UI";letter-spacing:1px;}
+QLabel#HunterDashboardModeBand{color:#79cfe4;font-weight:800;padding:2px 8px;}
+QLabel#HunterDashboardActivity{background:#101d26;color:#7f9eaa;border:1px solid #2a4653;border-radius:10px;padding:7px 10px;font-weight:900;}
+QLabel#HunterDashboardActivity[dashboardState="rx"]{background:#07382f;color:#72ffd0;border-color:#159777;}
+QLabel#HunterDashboardActivity[dashboardState="tx"]{background:#471825;color:#ff91aa;border-color:#c14363;}
+QLabel#HunterDashboardActivity[dashboardState="tx"][pulseOn="true"]{background:#6b1930;color:#fff1f5;border-color:#ff6485;}
+QLabel#HunterDashboardActivity[dashboardState="tune"]{background:#49340f;color:#ffda73;border-color:#bf8e29;}
+QLabel#HunterDashboardActivity[dashboardState="tune"][pulseOn="true"]{background:#684a0d;color:#fff0b5;border-color:#ffc44a;}
+QLabel#HunterDashboardCard,QLabel#HunterDashboardTarget,QLabel#HunterDashboardModule{background:#081d29;color:#cfeef6;border:1px solid #1b4a5e;border-radius:9px;padding:5px 8px;font-weight:700;}
+QLabel#HunterDashboardTarget{color:#76e9ff;border-color:#23687f;}
+QLabel#HunterDashboardModule[active="true"]{background:#07372f;color:#71ffd0;border-color:#159777;}
+QLabel#HunterDashboardModule[active="true"][pulseOn="true"]{background:#095143;color:#d7fff1;border-color:#39d9a9;}
 )QSS"));
 
       applySpecialWidgets (true);
@@ -351,6 +368,23 @@ QPushButton#HunterAccentButton:hover{background:#d3eff6;border-color:#38a9c6;}
 QPushButton#HunterDangerButton{background:#fff0f3;color:#a12a46;border-color:#e6a5b4;font-weight:700;}
 QPushButton#HunterDangerButton:hover{background:#ffe1e8;color:#8b1c36;border-color:#df5572;}
 QPushButton#HunterSecondaryButton{background:#eef6f8;color:#486c79;border-color:#c2d9e1;}
+
+QDockWidget#FT8HunterDashboard{border:1px solid #b7d5df;background:#eef7fa;}
+QDockWidget#FT8HunterDashboard::title{background:#e3f3f8;color:#087493;border-bottom:1px solid #b6d7e1;padding:6px 10px;font-weight:800;letter-spacing:1px;}
+QWidget#HunterDashboardBody{background:qlineargradient(x1:0,y1:0,x2:1,y2:0,stop:0 #f6fcfd,stop:0.45 #edf7fa,stop:1 #f6fcfd);}
+QLabel#HunterDashboardCall{color:#057b9e;letter-spacing:1px;padding:3px 6px;}
+QLabel#HunterDashboardFrequency{color:#123b4b;background:white;border:1px solid #add2dd;border-radius:10px;padding:5px 16px;font-family:"Consolas","Segoe UI";letter-spacing:1px;}
+QLabel#HunterDashboardModeBand{color:#337287;font-weight:800;padding:2px 8px;}
+QLabel#HunterDashboardActivity{background:#edf3f5;color:#6d858f;border:1px solid #cbdce2;border-radius:10px;padding:7px 10px;font-weight:900;}
+QLabel#HunterDashboardActivity[dashboardState="rx"]{background:#e0f8ee;color:#087252;border-color:#83d5b8;}
+QLabel#HunterDashboardActivity[dashboardState="tx"]{background:#ffe3e9;color:#a92645;border-color:#e89caf;}
+QLabel#HunterDashboardActivity[dashboardState="tx"][pulseOn="true"]{background:#ffcbd7;color:#8c1734;border-color:#df607c;}
+QLabel#HunterDashboardActivity[dashboardState="tune"]{background:#fff2cf;color:#765808;border-color:#e4c76d;}
+QLabel#HunterDashboardActivity[dashboardState="tune"][pulseOn="true"]{background:#ffe6a3;color:#624700;border-color:#d8ad3c;}
+QLabel#HunterDashboardCard,QLabel#HunterDashboardTarget,QLabel#HunterDashboardModule{background:#f7fcfd;color:#315b69;border:1px solid #c0dce4;border-radius:9px;padding:5px 8px;font-weight:700;}
+QLabel#HunterDashboardTarget{color:#087a9c;border-color:#9ccbd9;}
+QLabel#HunterDashboardModule[active="true"]{background:#dff7ed;color:#087252;border-color:#86d3b9;}
+QLabel#HunterDashboardModule[active="true"][pulseOn="true"]{background:#c8f1e2;color:#066144;border-color:#57bd9c;}
 )QSS"));
 
       applySpecialWidgets (false);
