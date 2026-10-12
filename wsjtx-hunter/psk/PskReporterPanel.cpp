@@ -56,7 +56,7 @@ PskReporterPanel::PskReporterPanel (Evaluator evaluator,
   , settings_ {settings}
   , client_ {new PskReporterMqttClient {this}}
   , connectCheck_ {new QCheckBox {tr ("Connetti PSK Reporter MQTT"), this}}
-  , autoQsyCheck_ {new QCheckBox {tr ("AUTO QSY sperimentale"), this}}
+  , autoQsyCheck_ {new QCheckBox {tr ("AUTO QSY"), this}}
   , newDxccCheck_ {new QCheckBox {tr ("NEW DXCC"), this}}
   , newBandCheck_ {new QCheckBox {tr ("NEW su banda"), this}}
   , ft8Check_ {new QCheckBox {QStringLiteral ("FT8"), this}}
@@ -71,7 +71,7 @@ PskReporterPanel::PskReporterPanel (Evaluator evaluator,
   , settleTimer_ {new QTimer {this}}
   , listenTimer_ {new QTimer {this}}
 {
-  setWindowTitle (tr ("FT8 Hunter 1.0.13 Beta - PSK Reporter"));
+  setWindowTitle (tr ("FT8 Hunter 1.0.14 - PSK Reporter"));
   setModal (false);
   setMinimumSize (980, 520);
   setAttribute (Qt::WA_DeleteOnClose, false);
@@ -89,6 +89,8 @@ PskReporterPanel::PskReporterPanel (Evaluator evaluator,
   autoQsyCheck_->setToolTip (
     tr ("PSK Reporter segnala solo un candidato. FT8 Hunter NON trasmette finche' "
         "il decoder locale non riceve un vero CQ della stessa stazione."));
+  autoQsyCheck_->setEnabled (false);
+  goButton_->setEnabled (false);
 
   table_->setHorizontalHeaderLabels (
     {tr ("UTC"), tr ("DX"), tr ("MHz RF"), tr ("Banda"), tr ("Modo"),
@@ -118,7 +120,7 @@ PskReporterPanel::PskReporterPanel (Evaluator evaluator,
   row1->addWidget (clearButton_);
 
   auto * warning = new QLabel {
-    tr ("BETA: un report PSK non equivale a CQ. Dopo la QSY FT8 Hunter ascolta localmente "
+    tr ("Un report PSK non equivale a CQ. Dopo la QSY FT8 Hunter ascolta localmente "
         "e passa il target al Monitor Hunter soltanto se riceve davvero il suo CQ."), this};
   warning->setWordWrap (true);
   QFont warningFont = warning->font ();
@@ -224,6 +226,37 @@ bool PskReporterPanel::huntActive () const
   return listening_;
 }
 
+void PskReporterPanel::setWorkedBeforeState (bool ready, int recordCount, QString const& error)
+{
+  workedBeforeReady_ = ready && error.trimmed ().isEmpty ();
+  workedBeforeRecords_ = recordCount;
+  workedBeforeError_ = error.trimmed ();
+
+  if (!workedBeforeReady_)
+    {
+      pendingValid_ = false;
+      settleTimer_->stop ();
+      if (listening_)
+        resetListen (tr ("Worked Before/Log4OM non disponibile - nessuna TX"));
+      autoQsyCheck_->setEnabled (false);
+      goButton_->setEnabled (false);
+
+      if (!workedBeforeError_.isEmpty ())
+        statusLabel_->setText (
+          tr ("Worked Before/Log4OM ERRORE: %1").arg (workedBeforeError_));
+      else
+        statusLabel_->setText (
+          tr ("Attendo caricamento Worked Before / Log4OM..."));
+      return;
+    }
+
+  autoQsyCheck_->setEnabled (true);
+  goButton_->setEnabled (true);
+  statusLabel_->setText (
+    tr ("Worked Before/Log4OM pronto: %1 record - confronto PSK attivo")
+      .arg (workedBeforeRecords_));
+}
+
 void PskReporterPanel::yieldToDxFun ()
 {
   if (!listening_) return;
@@ -265,6 +298,14 @@ void PskReporterPanel::handleMessage (QString const&, QByteArray const& payload)
 void PskReporterPanel::handleReport (PskReporterReport const& report)
 {
   ++reports_;
+
+  // Non classificare mai un report come NEW finche' il database Worked Before,
+  // incluso Log4OM/MySQL quando abilitato, non e' stato caricato con successo.
+  if (!workedBeforeReady_)
+    {
+      updateCounters ();
+      return;
+    }
 
   auto const now = QDateTime::currentDateTimeUtc ();
   auto const age = report.receivedUtc.secsTo (now);
@@ -390,7 +431,7 @@ void PskReporterPanel::queueCandidate (Candidate const& candidate)
 
 void PskReporterPanel::attemptAutoQsy ()
 {
-  if (!autoQsyCheck_->isChecked () || !pendingValid_ || listening_) return;
+  if (!workedBeforeReady_ || !autoQsyCheck_->isChecked () || !pendingValid_ || listening_) return;
 
   auto const now = QDateTime::currentDateTimeUtc ();
   if (pending_.receivedUtc.secsTo (now) > FreshSeconds)
@@ -506,6 +547,12 @@ void PskReporterPanel::observeLocalCq (QString const& rawText,
 
 void PskReporterPanel::tuneSelected ()
 {
+  if (!workedBeforeReady_)
+    {
+      statusLabel_->setText (tr ("Attendo Worked Before / Log4OM prima della QSY"));
+      return;
+    }
+
   auto const row = table_->currentRow ();
   if (row < 0 || !table_->item (row, 0)) return;
 
@@ -531,10 +578,13 @@ void PskReporterPanel::tuneSelected ()
 void PskReporterPanel::updateCounters ()
 {
   countersLabel_->setText (
-    tr ("Report ricevuti: %1   freschi FT8/FT4 HF: %2   candidati NEW: %3")
+    tr ("Report ricevuti: %1   freschi FT8/FT4 HF: %2   candidati NEW: %3   |   Log: %4")
       .arg (reports_)
       .arg (freshDigital_)
-      .arg (candidateReports_));
+      .arg (candidateReports_)
+      .arg (workedBeforeReady_
+              ? tr ("%1 record").arg (workedBeforeRecords_)
+              : workedBeforeError_.isEmpty () ? tr ("caricamento") : tr ("ERRORE")));
 }
 
 void PskReporterPanel::saveOption (QString const& key, QVariant const& value)
