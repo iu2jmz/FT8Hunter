@@ -9,6 +9,7 @@
 #include <QPushButton>
 #include <QSpinBox>
 #include <QUuid>
+#include <QUrl>
 #include <QVBoxLayout>
 
 HunterRemoteDialog::HunterRemoteDialog (HunterRemoteSettings settings, QWidget * parent)
@@ -92,10 +93,12 @@ HunterRemoteSettings HunterRemoteDialog::settings () const
 void HunterRemoteDialog::refreshSummary ()
 {
   HunterRemoteSettings s = settings ();
+  auto const app = HunterRemoteServer::appUrl (s);
+  auto const host = QUrl {app}.host ();
   url_->setText (
     QStringLiteral ("%1   |   WS: %2:%3")
-      .arg (HunterRemoteServer::appUrl (s))
-      .arg (s.lanAccess ? QStringLiteral ("IP-DEL-PC") : QStringLiteral ("127.0.0.1"))
+      .arg (app)
+      .arg (host)
       .arg (s.webSocketPort));
 }
 
