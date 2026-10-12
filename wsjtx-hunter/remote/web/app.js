@@ -1,5 +1,6 @@
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 let ws=null, cfg={webSocketPort:8788}, state={}, commandId=1;
+let manualDisconnect=false, reconnectTimer=null, pingTimer=null;
 const toast=m=>{const t=$('#toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1800)};
 const formatHz=n=>Number(n||0).toLocaleString('it-IT');
 
@@ -17,19 +18,41 @@ function command(name,args={}){
   ws.send(JSON.stringify(Object.assign({type:'command',id:commandId++,name:name},args)));
 }
 
+function clearReconnect(){
+  if(reconnectTimer){clearTimeout(reconnectTimer);reconnectTimer=null}
+}
+function startPing(){
+  if(pingTimer)clearInterval(pingTimer);
+  pingTimer=setInterval(()=>{if(ws&&ws.readyState===1)ws.send(JSON.stringify({type:'ping'}))},20000);
+}
+function scheduleReconnect(){
+  if(manualDisconnect||reconnectTimer)return;
+  const token=localStorage.getItem('ft8hunter-token')||'';
+  if(!token)return;
+  reconnectTimer=setTimeout(()=>{reconnectTimer=null;connectRemote()},2500);
+}
 async function connectRemote(){
+  if(ws&&(ws.readyState===0||ws.readyState===1))return;
   await loadCfg();
-  const token=$('#token').value.trim();
+  const token=$('#token').value.trim()||localStorage.getItem('ft8hunter-token')||'';
   if(!token){$('#loginError').textContent='Inserisci il token';return}
+  manualDisconnect=false;
+  clearReconnect();
   localStorage.setItem('ft8hunter-token',token);
+  $('#token').value=token;
   ws=new WebSocket('ws://'+location.hostname+':'+cfg.webSocketPort);
   ws.onopen=()=>ws.send(JSON.stringify({type:'auth',token:token}));
-  ws.onclose=()=>{setConnected(false);$('#login').classList.remove('hidden')};
-  ws.onerror=()=>{$('#loginError').textContent='Connessione non riuscita'};
+  ws.onclose=()=>{
+    setConnected(false);
+    if(pingTimer){clearInterval(pingTimer);pingTimer=null}
+    if(manualDisconnect){$('#login').classList.remove('hidden')}
+    else scheduleReconnect();
+  };
+  ws.onerror=()=>{$('#loginError').textContent='Connessione interrotta - riconnessione automatica...'};
   ws.onmessage=e=>{
     let m;try{m=JSON.parse(e.data)}catch(err){return}
     if(m.type==='auth'){
-      if(m.ok){$('#login').classList.add('hidden');$('#loginError').textContent='';setConnected(true)}
+      if(m.ok){$('#login').classList.add('hidden');$('#loginError').textContent='';setConnected(true);startPing()}
       else $('#loginError').textContent=m.message||'Token non valido';
     }else if(m.type==='state'){
       state=m;renderState();
@@ -52,7 +75,8 @@ function renderState(){
   $('#rxInput').value=state.rxOffset==null?1500:state.rxOffset;
   $('#txInput').value=state.txOffset==null?1500:state.txOffset;
   if(state.rfPower!=null){$('#rfPower').textContent=state.rfPower;$('#power').value=state.rfPower}
-  $$('.mode').forEach(b=>b.classList.toggle('active',b.dataset.mode===state.mode));
+  $('.mode').forEach(b=>b.classList.toggle('active',b.dataset.mode===state.mode));
+  $('[data-band]').forEach(b=>b.classList.toggle('active',b.dataset.band===state.band));
   $('#monitorState').textContent=(state.monitorHunter&&state.monitorHunter.state)||'--';
   $('#monitorTarget').textContent=(state.monitorHunter&&state.monitorHunter.target)||'Nessun target';
   $('#targetCall').textContent=(state.monitorHunter&&state.monitorHunter.target)||'—';
@@ -146,7 +170,8 @@ $$('.tabs button').forEach(b=>b.onclick=()=>{
   b.classList.add('active');$('#'+b.dataset.tab).classList.add('active');
   if(b.dataset.tab==='log')command('get_log');
 });
-$$('.mode').forEach(b=>b.onclick=()=>command('set_mode',{mode:b.dataset.mode}));
+$('.mode').forEach(b=>b.onclick=()=>command('set_mode',{mode:b.dataset.mode}));
+$('[data-band]').forEach(b=>b.onclick=()=>command('set_band',{band:b.dataset.band}));
 $$('[data-rx]').forEach(b=>b.onclick=()=>command('set_rx_offset',{value:Number($('#rxInput').value)+Number(b.dataset.rx)}));
 $$('[data-tx]').forEach(b=>b.onclick=()=>command('set_tx_offset',{value:Number($('#txInput').value)+Number(b.dataset.tx)}));
 $('#rxInput').onchange=()=>command('set_rx_offset',{value:Number($('#rxInput').value)});
@@ -167,7 +192,18 @@ $('#dxConnectBtn').onclick=()=>command('dxfun_connect',{enabled:!(state.dxFun&&s
 $('#dxAutoBtn').onclick=()=>command('dxfun_auto',{enabled:!(state.dxFun&&state.dxFun.automatic)});
 $('#pskConnectBtn').onclick=()=>command('psk_connect',{enabled:!(state.pskReporter&&state.pskReporter.connectionEnabled)});
 $('#pskAutoBtn').onclick=()=>command('psk_auto',{enabled:!(state.pskReporter&&state.pskReporter.automatic)});
-$('#disconnectBtn').onclick=()=>{localStorage.removeItem('ft8hunter-token');if(ws)ws.close()};
+$('#disconnectBtn').onclick=()=>{
+  manualDisconnect=true;
+  clearReconnect();
+  if(pingTimer){clearInterval(pingTimer);pingTimer=null}
+  localStorage.removeItem('ft8hunter-token');
+  if(ws)ws.close();
+  setConnected(false);
+  $('#login').classList.remove('hidden');
+  if(window.FT8HunterNative&&typeof window.FT8HunterNative.disconnectRemote==='function'){
+    try{window.FT8HunterNative.disconnectRemote()}catch(e){}
+  }
+};
 $('#themeSelect').onchange=e=>{
   document.body.classList.toggle('light',e.target.value==='light');
   localStorage.setItem('ft8hunter-theme',e.target.value);
@@ -181,3 +217,14 @@ const savedToken=localStorage.getItem('ft8hunter-token')||'';
 $('#token').value=savedToken;
 if('serviceWorker' in navigator)navigator.serviceWorker.register('service-worker.js').catch(()=>{});
 if(savedToken)connectRemote();
+
+window.ensureRemoteConnected=()=>{
+  const token=localStorage.getItem('ft8hunter-token')||'';
+  if(token&&(!ws||ws.readyState===2||ws.readyState===3)){
+    $('#token').value=token;
+    connectRemote();
+  }
+};
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)window.ensureRemoteConnected()});
+window.addEventListener('online',()=>window.ensureRemoteConnected());
+window.addEventListener('pageshow',()=>window.ensureRemoteConnected());
