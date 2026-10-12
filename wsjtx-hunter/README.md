@@ -202,3 +202,42 @@ Nuova finestra **Tools > FT8 Hunter > PSK Reporter...**.
 - **nessuna trasmissione parte sulla sola base del report PSK**
 - il QSO viene affidato al Monitor Hunter soltanto se il decoder locale riceve realmente un CQ del target
 - DXFun mantiene priorita' rispetto a PSK Reporter; Band Hunter resta sospeso durante la verifica del candidato
+
+
+## v2.0.0 - New Styling + FT8 Hunter Remote
+
+La 2.0.0 apre la nuova linea principale di FT8 Hunter mantenendo il motore WSJT-X,
+Log4OM/MySQL e tutte le funzioni Hunter della 1.0.14.
+
+### Selezione automatica TX
+
+- la ricerca dello slot TX libero dal waterfall e' limitata a **500-2400 Hz**
+- gli estremi audio non vengono piu' scelti automaticamente
+- restano la guardia rispetto al DX e l'analisi dell'energia reale del waterfall
+- il range 500-2400 Hz viene mostrato anche nell'app Remote
+
+### New Styling PC
+
+- nuovo stile FT8 Hunter non standard, coerente con l'app mobile
+- tema **Dark** e **Light** selezionabile da Tools > FT8 Hunter > Aspetto 2.0
+- palette, pulsanti, menu, tabelle, tab e finestre Hunter vengono uniformati
+- scelta del tema salvata nelle impostazioni
+
+### FT8 Hunter Remote 2.0.0
+
+La Web App viene servita direttamente dal PC che esegue FT8 Hunter.
+
+- server HTTP locale/LAN configurabile
+- canale WebSocket realtime
+- autenticazione tramite token generato dal programma
+- accesso LAN/VPN attivabile; nessuna apertura Internet automatica
+- autorizzazione TX remota separata e disabilitabile
+- stato realtime: frequenza, banda, modo, RX/TX offset, Monitor Hunter,
+  Band Hunter, DXFun, PSK Reporter e blacklist
+- controllo remoto: FT8/FT4, QSY, RX/TX audio, RF Power, monitor,
+  Monitor Hunter AUTO, Band Hunter, STOP TX e riabilitazione blacklist
+- spectrum/waterfall remoto derivato dallo spettro reale del Grafico Ampio
+- UI mobile Dark/Light con branding FT8 Hunter / IU2JMZ
+
+Per accesso fuori dalla rete locale usare una VPN come Tailscale o WireGuard.
+Non esporre direttamente le porte HTTP/WebSocket di FT8 Hunter su Internet.
