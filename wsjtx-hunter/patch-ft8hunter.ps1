@@ -2587,3 +2587,111 @@ Replace-Required "logbook/WorkedBefore.cpp" @'
 '@
 
 Write-Host "Applied FT8 Hunter $HunterVersion serialized Worked Before/Log4OM reload protection."
+
+
+# ---------------------------------------------------------------------------
+# FT8 Hunter 2.1.0 - colori decode adattivi per Dark Futuristic
+# Le evidenziazioni configurate restano semanticamente uguali, ma i fondi
+# molto luminosi vengono rimappati in tonalita' scure leggibili.
+# ---------------------------------------------------------------------------
+
+Replace-Required "widgets/displaytext.cpp" @'
+  using Highlight = DecodeHighlightingModel::Highlight;
+  using highlight_types = std::vector<Highlight>;
+  Highlight set_colours (Configuration const * config, QColor * bg, QColor * fg, highlight_types const& types)
+'@ @'
+  using Highlight = DecodeHighlightingModel::Highlight;
+  using highlight_types = std::vector<Highlight>;
+
+  bool hunter_futuristic_dark ()
+  {
+    auto * app = QCoreApplication::instance ();
+    return app && app->property ("FT8HunterFuturisticDark").toBool ();
+  }
+
+  QColor hunter_decode_background (QColor const& source)
+  {
+    if (!hunter_futuristic_dark () || !source.isValid ()) return source;
+
+    int h = 0;
+    int s = 0;
+    int l = 0;
+    int a = 255;
+    source.getHsl (&h, &s, &l, &a);
+    if (h < 0)
+      {
+        h = 195;
+        s = 70;
+      }
+    else
+      {
+        s = qBound (70, s, 225);
+      }
+
+    // Mantiene il significato cromatico ma elimina gialli/verdi fluorescenti.
+    l = qBound (26, l / 4 + 18, 78);
+    QColor mapped;
+    mapped.setHsl (h, s, l, a);
+    return mapped;
+  }
+
+  QColor hunter_decode_foreground (QColor const& source, QColor const& background)
+  {
+    if (!hunter_futuristic_dark () || !background.isValid ()) return source;
+    if (!source.isValid () || source.lightness () < 150)
+      return QColor (232, 249, 253);
+    return source;
+  }
+
+  Highlight set_colours (Configuration const * config, QColor * bg, QColor * fg, highlight_types const& types)
+'@
+
+Replace-Required "widgets/displaytext.cpp" @'
+  block_format.clearBackground ();
+  if (bg.isValid ())
+    {
+      block_format.setBackground (bg);
+    }
+  format.clearForeground ();
+  if (fg.isValid ())
+    {
+      format.setForeground (fg);
+    }
+'@ @'
+  block_format.clearBackground ();
+  auto const themedBg = hunter_decode_background (bg);
+  auto const themedFg = hunter_decode_foreground (fg, themedBg);
+  if (themedBg.isValid ())
+    {
+      block_format.setBackground (themedBg);
+    }
+  format.clearForeground ();
+  if (themedFg.isValid ())
+    {
+      format.setForeground (themedFg);
+    }
+'@
+
+Replace-Required "widgets/displaytext.cpp" @'
+              if (pos.value ().first.isValid ())
+                {
+                  temp_format.setBackground (pos.value ().first);
+                }
+              if (pos.value ().second.isValid ())
+                {
+                  temp_format.setForeground (pos.value ().second);
+                }
+'@ @'
+              auto const callBg = hunter_decode_background (pos.value ().first);
+              auto const callFg = hunter_decode_foreground (pos.value ().second, callBg);
+              if (callBg.isValid ())
+                {
+                  temp_format.setBackground (callBg);
+                }
+              if (callFg.isValid ())
+                {
+                  temp_format.setForeground (callFg);
+                }
+'@
+
+Write-Host "Applied FT8 Hunter $HunterVersion Dark Futuristic adaptive decode colours."
