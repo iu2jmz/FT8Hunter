@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#071321">
-  <title>FT8 Hunter Remote 2.2.0</title>
+  <title>FT8 Hunter Remote 2.2.1</title>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icon.png">
   <link rel="stylesheet" href="styles.css">
@@ -14,7 +14,7 @@
     <div class="login-card glass">
       <img src="icon.png" alt="FT8 Hunter">
       <h1>FT8 Hunter Remote</h1>
-      <p>IU2JMZ · v2.2.0</p>
+      <p>IU2JMZ · v2.2.1</p>
       <label>Token di accesso</label>
       <input id="token" autocomplete="off" spellcheck="false" placeholder="Token mostrato sul PC">
       <button id="connectBtn" class="primary">Connetti</button>
@@ -26,7 +26,7 @@
   <header>
     <div class="brand">
       <img src="icon.png" alt="">
-      <div><strong>FT8 HUNTER</strong><span>Remote 2.2.0</span></div>
+      <div><strong>FT8 HUNTER</strong><span>Remote 2.2.1</span></div>
     </div>
     <div class="identity"><b id="myCall">IU2JMZ</b><span id="connDot" class="dot off"></span><span id="connText">Offline</span></div>
   </header>
@@ -72,6 +72,21 @@
         <div class="glass control">
           <label>Potenza RF</label>
           <input id="power" type="range" min="5" max="100" step="5">
+        </div>
+      </div>
+
+      <div class="glass manual-band-card">
+        <div class="card-title">BANDE MANUALI <span>usa le working frequency FT8/FT4 del PC</span></div>
+        <div class="band-grid">
+          <button data-band="80m">80 m</button>
+          <button data-band="60m">60 m</button>
+          <button data-band="40m">40 m</button>
+          <button data-band="30m">30 m</button>
+          <button data-band="20m">20 m</button>
+          <button data-band="17m">17 m</button>
+          <button data-band="15m">15 m</button>
+          <button data-band="12m">12 m</button>
+          <button data-band="10m">10 m</button>
         </div>
       </div>
 
