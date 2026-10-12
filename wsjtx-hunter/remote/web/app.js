@@ -36,6 +36,7 @@ async function connectRemote(){
     }else if(m.type==='spectrum'){
       renderSpectrum(m);
     }else if(m.type==='command_result'){
+      if(Array.isArray(m.rows))renderLog(m.rows);
       if(!m.ok)toast(m.message||'Comando rifiutato');else if(m.message)toast(m.message);
     }
   };
@@ -103,6 +104,16 @@ function renderPsk(psk){
   });
 }
 
+function renderLog(rows){
+  const root=$('#logRows');root.innerHTML='';
+  if(!rows.length){root.innerHTML='<p>Nessun QSO disponibile.</p>';return}
+  rows.forEach(x=>{
+    const d=document.createElement('div');d.className='list-row remote-event';
+    d.innerHTML='<div><b>'+x.call+'</b><br><small>'+x.date+'</small></div><small>'+x.band+'</small><b>'+x.mode+'</b>';
+    root.appendChild(d);
+  });
+}
+
 function renderSpectrum(m){
   const a=m.values||[];if(!a.length)return;
   const cv=$('#spectrum'),ctx=cv.getContext('2d'),w=cv.width,h=cv.height;
@@ -128,6 +139,7 @@ $$('.tabs button').forEach(b=>b.onclick=()=>{
   $$('.tabs button').forEach(x=>x.classList.remove('active'));
   $$('.page').forEach(x=>x.classList.remove('active'));
   b.classList.add('active');$('#'+b.dataset.tab).classList.add('active');
+  if(b.dataset.tab==='log')command('get_log');
 });
 $$('.mode').forEach(b=>b.onclick=()=>command('set_mode',{mode:b.dataset.mode}));
 $$('[data-rx]').forEach(b=>b.onclick=()=>command('set_rx_offset',{value:Number($('#rxInput').value)+Number(b.dataset.rx)}));
@@ -142,6 +154,7 @@ $('#monitorAutoBtn').onclick=()=>command('monitor_hunter_auto',{enabled:!(state.
 $('#bandHunterBtn').onclick=()=>command('band_hunter',{enabled:!(state.bandHunter&&state.bandHunter.active)});
 $('#setFreqBtn').onclick=()=>command('set_frequency',{frequencyHz:Number($('#freqInput').value)});
 $('#blacklistRefresh').onclick=()=>command('refresh');
+$('#logRefresh').onclick=()=>command('get_log');
 $('#disconnectBtn').onclick=()=>{localStorage.removeItem('ft8hunter-token');if(ws)ws.close()};
 $('#themeSelect').onchange=e=>{
   document.body.classList.toggle('light',e.target.value==='light');
