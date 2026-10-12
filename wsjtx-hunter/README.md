@@ -259,3 +259,31 @@ Hunter, Log4OM/MySQL, DXFun, PSK Reporter, Band Hunter e Remote.
 - evidenziazioni dei decode in Dark Futuristic rimappate su tonalita' scure, mantenendo il significato cromatico senza fondi fluorescenti
 - scelta tema persistente da **Tools > FT8 Hunter > Aspetto 2.1**
 - branding Remote aggiornato a 2.1.0; il protocollo resta compatibile con il client Android 2.0.0
+
+
+## v2.2.0 - Advanced UI / Live Console
+
+La 2.2.0 estende il restyling Futuristic della 2.1.0 con una vera dashboard operativa desktop,
+senza modificare il motore FT8/FT4, le logiche Hunter o la sicurezza introdotta nelle versioni precedenti.
+
+### Live Console
+- nuova dashboard **FT8 Hunter // Live Console 2.2** integrata come dock nella finestra principale
+- frequenza RF in grande formato, banda e modo sempre visibili
+- indicatori live per **RX audio, TX audio, RF Power e target corrente**
+- stato globale **STANDBY / RX MONITOR / RX + AUTO TX ARMED / TUNE / TX LIVE**
+- indicatori separati per **Monitor Hunter, Band Hunter, DXFun e PSK Reporter**
+- aggiornamento stato circa ogni 450 ms
+- animazione leggera/pulse degli stati realmente attivi, senza animazioni invasive
+- dashboard spostabile, flottante o chiudibile come normale dock Qt
+- voce **Tools > FT8 Hunter > Dashboard Live Console 2.2** per mostrarla/nasconderla
+
+### Grafica
+- Dark Futuristic e Light Futuristic estesi alla Live Console
+- card coerenti per radio, target e moduli Hunter
+- TX/TUNE/RX con colori semantici dedicati
+- nessuna modifica alle evidenziazioni logiche dei decode introdotte nella 2.1.0
+
+### Remote
+- branding e protocol version aggiornati a 2.2.0
+- restano token, LAN/VPN, HTTP/WebSocket, controllo TX separatamente autorizzabile
+- il client Android 2.0.0 resta compatibile col protocollo corrente
