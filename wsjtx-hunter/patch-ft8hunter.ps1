@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory=$true)][string]$SourceDir,
-    [string]$HunterVersion = "2.0.0"
+    [string]$HunterVersion = "2.0.1"
 )
 
 $ErrorActionPreference = "Stop"
@@ -67,7 +67,10 @@ Replace-Required "widgets/mainwindow.cpp" @'
   ui->setupUi(this);
   setUnifiedTitleAndToolBarOnMac (true);
 '@ @'
+  HunterStartupTrace::clear ();
+  HunterStartupTrace::write (QStringLiteral ("MainWindow: before setupUi"));
   ui->setupUi(this);
+  HunterStartupTrace::write (QStringLiteral ("MainWindow: after setupUi"));
 
   // FT8 Hunter: configurazione del log remoto Log4OM/MySQL.
   auto * hunterMenu = ui->menuTools->addMenu (tr ("FT8 Hunter"));
@@ -1882,6 +1885,7 @@ Copy-Item "wsjtx-hunter/remote/HunterRemoteServer.hpp" (Join-Path $hunterDir "Hu
 Copy-Item "wsjtx-hunter/remote/HunterRemoteServer.cpp" (Join-Path $hunterDir "HunterRemoteServer.cpp") -Force
 Copy-Item "wsjtx-hunter/remote/HunterRemoteDialog.hpp" (Join-Path $hunterDir "HunterRemoteDialog.hpp") -Force
 Copy-Item "wsjtx-hunter/remote/HunterRemoteDialog.cpp" (Join-Path $hunterDir "HunterRemoteDialog.cpp") -Force
+Copy-Item "wsjtx-hunter/common/HunterStartupTrace.hpp" (Join-Path $hunterDir "HunterStartupTrace.hpp") -Force
 
 Replace-Required "CMakeLists.txt" @'
   FT8Hunter/PskReporterMqtt.cpp
@@ -1903,7 +1907,20 @@ Replace-Required "widgets/mainwindow.cpp" @'
 #include "FT8Hunter/HunterTheme.hpp"
 #include "FT8Hunter/HunterRemoteServer.hpp"
 #include "FT8Hunter/HunterRemoteDialog.hpp"
+#include "FT8Hunter/HunterStartupTrace.hpp"
 #include <QJsonArray>
+'@
+
+# Forward declaration per il server Remote lazy.
+Replace-Required "widgets/mainwindow.h" @'
+class Cloudlog;
+
+class MainWindow
+'@ @'
+class Cloudlog;
+class HunterRemoteServer;
+
+class MainWindow
 '@
 
 # Stato RF mostrato nell'app remota.
@@ -1913,6 +1930,7 @@ Replace-Required "widgets/mainwindow.h" @'
 '@ @'
   int m_monitorHunterPreviousTxFreq {0};
   int m_hunterRemoteRfPower {-1};
+  HunterRemoteServer * m_hunterRemoteServer {nullptr};
   QScopedPointer<EchoGraph> m_echoGraph;
 '@
 
