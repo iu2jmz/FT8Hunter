@@ -1936,9 +1936,13 @@ Replace-Required "widgets/mainwindow.cpp" @'
   auto applyHunterTheme = [this] (HunterTheme::Mode mode) {
       HunterTheme::save (m_settings, mode);
       HunterTheme::apply (qApp, mode);
+      m_useDarkStyle = mode == HunterTheme::Mode::Dark;
+      m_wideGraph->setDarkStyle (m_useDarkStyle);
     };
   auto const savedHunterTheme = HunterTheme::load (m_settings);
   HunterTheme::apply (qApp, savedHunterTheme);
+  m_useDarkStyle = savedHunterTheme == HunterTheme::Mode::Dark;
+  m_wideGraph->setDarkStyle (m_useDarkStyle);
 
   auto * appearanceMenu = hunterMenu->addMenu (tr ("Aspetto 2.0"));
   auto * darkThemeAction = appearanceMenu->addAction (tr ("Dark"));
