@@ -2,6 +2,7 @@
 
 #include <QDialog>
 #include <QHash>
+#include <QJsonObject>
 #include <QString>
 #include <QStringList>
 #include <functional>
@@ -33,6 +34,8 @@ public:
 
   void openWindow ();
   bool active () const;
+  bool setActive (bool enabled);
+  QJsonObject remoteSnapshot () const;
   void pauseForExternalHunter ();
 
 protected:
