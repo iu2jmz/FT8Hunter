@@ -217,7 +217,21 @@ void HunterRemoteServer::handleHttp (QTcpSocket * socket)
   if (queryPos >= 0) path = path.left (queryPos);
 
   QByteArray mime;
-  auto const body = loadWebAsset (path, &mime);
+  QByteArray body;
+  if (path == QStringLiteral ("/remote-config.json"))
+    {
+      QJsonObject config {
+        {QStringLiteral ("version"), QStringLiteral ("2.0.0")},
+        {QStringLiteral ("webSocketPort"), static_cast<int> (settings_.webSocketPort)}
+      };
+      body = QJsonDocument {config}.toJson (QJsonDocument::Compact);
+      mime = QByteArrayLiteral ("application/json; charset=utf-8");
+    }
+  else
+    {
+      body = loadWebAsset (path, &mime);
+    }
+
   if (body.isEmpty ())
     {
       socket->write ("HTTP/1.1 404 Not Found\r\nConnection: close\r\nContent-Length: 0\r\n\r\n");
