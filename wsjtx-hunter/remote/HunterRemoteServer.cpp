@@ -244,7 +244,7 @@ void HunterRemoteServer::handleHttp (QTcpSocket * socket)
   if (path == QStringLiteral ("/remote-config.json"))
     {
       QJsonObject config {
-        {QStringLiteral ("version"), QStringLiteral ("2.2.1")},
+        {QStringLiteral ("version"), QStringLiteral ("2.2.2")},
         {QStringLiteral ("webSocketPort"), static_cast<int> (settings_.webSocketPort)}
       };
       body = QJsonDocument {config}.toJson (QJsonDocument::Compact);
@@ -288,7 +288,7 @@ void HunterRemoteServer::acceptWebSocket ()
 
       QJsonObject hello;
       hello.insert (QStringLiteral ("type"), QStringLiteral ("hello"));
-      hello.insert (QStringLiteral ("version"), QStringLiteral ("2.2.1"));
+      hello.insert (QStringLiteral ("version"), QStringLiteral ("2.2.2"));
       hello.insert (QStringLiteral ("authRequired"), true);
       sendJson (socket, hello);
     }
