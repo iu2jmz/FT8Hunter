@@ -42,6 +42,11 @@
       <button data-tab="settings">Impostazioni</button>
     </nav>
 
+    <div id="remoteTxBanner" class="remote-auth-banner blocked">
+      <b>TX REMOTA BLOCCATA</b>
+      <span>Abilita sul PC: Consenti comandi che possono avviare la TX</span>
+    </div>
+
     <section id="radio" class="page active">
       <div class="hero glass">
         <div class="mode-row">
@@ -100,10 +105,10 @@
 
     <section id="hunter" class="page">
       <div class="status-grid">
-        <article class="glass status-card"><h3>Monitor Hunter</h3><strong id="monitorState">--</strong><p id="monitorTarget">Nessun target</p><button id="monitorAutoBtn">AUTO</button></article>
-        <article class="glass status-card"><h3>Band Hunter</h3><strong id="bandHunterState">--</strong><p id="bandHunterInfo">--</p><button id="bandHunterBtn">START / STOP</button></article>
-        <article class="glass status-card"><h3>DXFun</h3><strong id="dxState">--</strong><p>Priorità remota</p></article>
-        <article class="glass status-card"><h3>PSK Reporter</h3><strong id="pskState">--</strong><p>Conferma CQ locale</p></article>
+        <article class="glass status-card"><h3>Monitor Hunter</h3><strong id="monitorState">--</strong><p id="monitorTarget">Nessun target</p><small id="monitorReady">Stato filtro: --</small><button id="monitorAutoBtn">AUTO</button></article>
+        <article class="glass status-card"><h3>Band Hunter</h3><strong id="bandHunterState">--</strong><p id="bandHunterInfo">--</p><small id="bandReady">Motore: --</small><button id="bandHunterBtn">START / STOP</button></article>
+        <article class="glass status-card"><h3>DXFun</h3><strong id="dxState">--</strong><p id="dxInfo">Connessione: --</p></article>
+        <article class="glass status-card"><h3>PSK Reporter</h3><strong id="pskState">--</strong><p id="pskInfo">Worked Before: --</p></article>
       </div>
       <div class="glass target-card">
         <div class="card-title">TARGET CORRENTE</div>
