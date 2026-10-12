@@ -2144,6 +2144,38 @@ Replace-Required "widgets/mainwindow.cpp" @'
           else
             fail (tr ("Nominativo non presente in blacklist"));
         }
+      else if (name == QStringLiteral ("get_log"))
+        {
+          auto const mysql = Log4OmMysql::loadSettings ();
+          if (!mysql.enabled)
+            {
+              fail (tr ("Log4OM/MySQL non abilitato"));
+            }
+          else
+            {
+              QString error;
+              auto const rows = Log4OmMysql::loadRecentQsos (mysql, 30, &error);
+              if (!error.isEmpty ())
+                {
+                  fail (error);
+                }
+              else
+                {
+                  QJsonArray jsonRows;
+                  for (auto const& row : rows)
+                    {
+                      QJsonObject item;
+                      item.insert (QStringLiteral ("call"), row.callsign);
+                      item.insert (QStringLiteral ("date"), row.qsoDate);
+                      item.insert (QStringLiteral ("band"), row.band);
+                      item.insert (QStringLiteral ("mode"), row.mode);
+                      jsonRows.append (item);
+                    }
+                  reply.insert (QStringLiteral ("rows"), jsonRows);
+                  ok (tr ("%1 QSO caricati").arg (rows.size ()));
+                }
+            }
+        }
       else
         {
           fail (tr ("Comando remoto non riconosciuto"));
