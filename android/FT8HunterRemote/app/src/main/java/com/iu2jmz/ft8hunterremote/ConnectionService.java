@@ -75,7 +75,7 @@ public final class ConnectionService extends Service {
 
         return builder
                 .setSmallIcon(android.R.drawable.stat_notify_sync)
-                .setContentTitle("FT8 Hunter Remote 2.2.1")
+                .setContentTitle("FT8 Hunter Remote 2.2.2")
                 .setContentText(text)
                 .setContentIntent(contentIntent)
                 .setOngoing(true)
