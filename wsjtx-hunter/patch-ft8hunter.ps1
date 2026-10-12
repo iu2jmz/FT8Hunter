@@ -2012,6 +2012,10 @@ Replace-Required "widgets/mainwindow.cpp" @'
         };
 
       auto const name = command.value (QStringLiteral ("name")).toString ();
+      auto const hunterBusy =
+        monitorHunterPanel->huntActive ()
+        || (g_dxFunPanel && g_dxFunPanel->huntActive ())
+        || pskReporterPanel->huntActive ();
 
       if (name == QStringLiteral ("refresh"))
         {
@@ -2035,6 +2039,10 @@ Replace-Required "widgets/mainwindow.cpp" @'
             {
               fail (tr ("TX remota non autorizzata nelle impostazioni PC"));
             }
+          else if (enabled && (m_transmitting || m_auto || hunterBusy))
+            {
+              fail (tr ("TUNE non disponibile durante TX/Auto/Hunter"));
+            }
           else
             {
               ui->tuneButton->setChecked (enabled);
@@ -2044,9 +2052,9 @@ Replace-Required "widgets/mainwindow.cpp" @'
         }
       else if (name == QStringLiteral ("set_mode"))
         {
-          if (m_transmitting || m_tune)
+          if (m_transmitting || m_tune || m_auto || hunterBusy)
             {
-              fail (tr ("Modo non modificabile durante TX/Tune"));
+              fail (tr ("Modo non modificabile durante TX/Tune/Auto/Hunter"));
             }
           else
             {
@@ -2065,9 +2073,9 @@ Replace-Required "widgets/mainwindow.cpp" @'
         }
       else if (name == QStringLiteral ("set_frequency"))
         {
-          if (m_transmitting || m_tune || m_auto)
+          if (m_transmitting || m_tune || m_auto || hunterBusy || bandHunterPanel->active ())
             {
-              fail (tr ("QSY non disponibile durante TX/Tune/Auto"));
+              fail (tr ("QSY non disponibile durante TX/Tune/Auto/Hunter"));
             }
           else
             {
@@ -2099,24 +2107,45 @@ Replace-Required "widgets/mainwindow.cpp" @'
         }
       else if (name == QStringLiteral ("set_rx_offset"))
         {
-          auto value = command.value (QStringLiteral ("value")).toInt ();
-          value = qBound (ui->RxFreqSpinBox->minimum (), value, ui->RxFreqSpinBox->maximum ());
-          ui->RxFreqSpinBox->setValue (value);
-          ok (tr ("RX %1 Hz").arg (value));
+          if (m_transmitting || m_auto || hunterBusy)
+            {
+              fail (tr ("RX non modificabile durante TX/Auto/Hunter"));
+            }
+          else
+            {
+              auto value = command.value (QStringLiteral ("value")).toInt ();
+              value = qBound (ui->RxFreqSpinBox->minimum (), value, ui->RxFreqSpinBox->maximum ());
+              ui->RxFreqSpinBox->setValue (value);
+              ok (tr ("RX %1 Hz").arg (value));
+            }
         }
       else if (name == QStringLiteral ("set_tx_offset"))
         {
-          auto value = command.value (QStringLiteral ("value")).toInt ();
-          value = qBound (500, value, 2400);
-          ui->TxFreqSpinBox->setValue (value);
-          ok (tr ("TX %1 Hz").arg (value));
+          if (m_transmitting || m_auto || hunterBusy)
+            {
+              fail (tr ("TX audio bloccata durante TX/Auto/Hunter"));
+            }
+          else
+            {
+              auto value = command.value (QStringLiteral ("value")).toInt ();
+              value = qBound (500, value, 2400);
+              ui->TxFreqSpinBox->setValue (value);
+              ok (tr ("TX %1 Hz").arg (value));
+            }
         }
       else if (name == QStringLiteral ("set_power"))
         {
-          auto value = qBound (5, command.value (QStringLiteral ("value")).toInt (), 100);
-          m_config.transceiver_rf_power_percent (value);
-          m_hunterRemoteRfPower = value;
-          ok (tr ("RF Power %1%").arg (value));
+          if (m_transmitting || m_auto || hunterBusy)
+            {
+              fail (tr ("RF Power bloccata durante TX/Auto/Hunter: gestita dal watchdog"));
+            }
+          else
+            {
+              auto value = qBound (5, command.value (QStringLiteral ("value")).toInt (), 100);
+              m_config.transceiver_rf_power_percent (value);
+              m_hunterRemoteRfPower = value;
+              ok (tr ("RF Power %1%").arg (value));
+            }
         }
       else if (name == QStringLiteral ("monitor_hunter_auto"))
         {
