@@ -6,6 +6,7 @@
 #include <QHostAddress>
 #include <QJsonDocument>
 #include <QJsonParseError>
+#include <QNetworkInterface>
 #include <QSettings>
 #include <QTcpServer>
 #include <QTcpSocket>
@@ -103,8 +104,25 @@ QString HunterRemoteServer::ensureToken (HunterRemoteSettings settings)
 
 QString HunterRemoteServer::appUrl (HunterRemoteSettings const& settings)
 {
+  QString host = QStringLiteral ("127.0.0.1");
+  if (settings.lanAccess)
+    {
+      for (auto const& address : QNetworkInterface::allAddresses ())
+        {
+          if (address.protocol () != QAbstractSocket::IPv4Protocol
+              || address.isLoopback ()
+              || address.isNull ())
+            continue;
+
+          auto const candidate = address.toString ();
+          if (candidate.startsWith (QStringLiteral ("169.254."))) continue;
+          host = candidate;
+          break;
+        }
+    }
+
   return QStringLiteral ("http://%1:%2/")
-    .arg (settings.lanAccess ? QStringLiteral ("IP-DEL-PC") : QStringLiteral ("127.0.0.1"))
+    .arg (host)
     .arg (settings.httpPort);
 }
 
