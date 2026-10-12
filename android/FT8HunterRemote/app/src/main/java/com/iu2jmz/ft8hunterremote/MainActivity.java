@@ -1,17 +1,19 @@
 package com.iu2jmz.ft8hunterremote;
 
+import android.Manifest;
 import android.app.Activity;
-import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
-import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.text.InputType;
 import android.view.Gravity;
-import android.view.View;
 import android.view.ViewGroup;
+import android.webkit.JavascriptInterface;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
@@ -35,13 +37,15 @@ public final class MainActivity extends Activity {
     private static final String PREFS = "ft8_hunter_remote";
     private static final String KEY_URL = "server_url";
     private static final String KEY_TOKEN = "token";
+    private static final String KEY_CONNECTED = "persistent_connected";
+
+    private static final int NOTIFICATION_PERMISSION_REQUEST = 2201;
 
     private static final int BG = Color.rgb(6, 16, 28);
     private static final int PANEL = Color.rgb(11, 27, 43);
     private static final int CYAN = Color.rgb(22, 215, 255);
     private static final int TEXT = Color.rgb(231, 245, 255);
     private static final int MUTED = Color.rgb(130, 169, 196);
-    private static final int RED = Color.rgb(255, 83, 100);
 
     private SharedPreferences prefs;
     private WebView webView;
@@ -57,11 +61,13 @@ public final class MainActivity extends Activity {
 
         serverUrl = prefs.getString(KEY_URL, "");
         token = prefs.getString(KEY_TOKEN, "");
+        boolean connected = prefs.getBoolean(KEY_CONNECTED, false);
 
-        if (serverUrl.isEmpty() || token.isEmpty()) {
-            showSetup();
-        } else {
+        if (connected && !serverUrl.isEmpty() && !token.isEmpty()) {
+            startPersistentConnection();
             showRemote();
+        } else {
+            showSetup();
         }
     }
 
@@ -89,8 +95,51 @@ public final class MainActivity extends Activity {
         return v;
     }
 
+    private void requestNotificationPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT >= 33
+                && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(
+                    new String[]{Manifest.permission.POST_NOTIFICATIONS},
+                    NOTIFICATION_PERMISSION_REQUEST);
+        }
+    }
+
+    private void startPersistentConnection() {
+        requestNotificationPermissionIfNeeded();
+        Intent service = new Intent(this, ConnectionService.class);
+        service.setAction(ConnectionService.ACTION_START);
+        service.putExtra(ConnectionService.EXTRA_ENDPOINT, serverUrl);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(service);
+        } else {
+            startService(service);
+        }
+    }
+
+    private void stopPersistentConnection() {
+        stopService(new Intent(this, ConnectionService.class));
+    }
+
+    private void disposeWebView() {
+        if (webView != null) {
+            webView.stopLoading();
+            webView.loadUrl("about:blank");
+            webView.removeJavascriptInterface("FT8HunterNative");
+            webView.destroy();
+            webView = null;
+        }
+    }
+
+    private void disconnectAndShowSetup() {
+        prefs.edit().putBoolean(KEY_CONNECTED, false).apply();
+        stopPersistentConnection();
+        disposeWebView();
+        showSetup();
+    }
+
     private void showSetup() {
-        webView = null;
+        if (webView != null) disposeWebView();
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
@@ -112,7 +161,7 @@ public final class MainActivity extends Activity {
         title.setGravity(Gravity.CENTER);
         root.addView(title);
 
-        TextView call = label("IU2JMZ  ·  2.0.0", 15, CYAN, true);
+        TextView call = label("IU2JMZ  ·  2.2.1", 15, CYAN, true);
         call.setGravity(Gravity.CENTER);
         LinearLayout.LayoutParams callLp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
@@ -167,7 +216,7 @@ public final class MainActivity extends Activity {
 
         Button connect = new Button(this);
         connect.setAllCaps(false);
-        connect.setText("Connetti a FT8 Hunter");
+        connect.setText("Connetti e mantieni attiva");
         connect.setTextColor(Color.WHITE);
         connect.setTextSize(16);
         connect.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
@@ -189,15 +238,19 @@ public final class MainActivity extends Activity {
             prefs.edit()
                     .putString(KEY_URL, serverUrl)
                     .putString(KEY_TOKEN, token)
+                    .putBoolean(KEY_CONNECTED, true)
                     .apply();
+
+            startPersistentConnection();
             showRemote();
         });
         card.addView(connect, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, dp(52)));
 
         TextView help = label(
-                "Sul PC: Tools → FT8 Hunter → FT8 Hunter Remote 2.0.0. " +
-                "Attiva l'accesso LAN/VPN, quindi usa qui l'indirizzo e il token mostrati dal programma.",
+                "Sul PC: Tools → FT8 Hunter → FT8 Hunter Remote 2.2.1. " +
+                "Attiva LAN/VPN. Dopo la connessione l'app mantiene il collegamento " +
+                "anche in secondo piano e a schermo spento finché non premi Disconnetti.",
                 12, MUTED, false);
         help.setGravity(Gravity.CENTER);
         help.setLineSpacing(0f, 1.18f);
@@ -223,11 +276,8 @@ public final class MainActivity extends Activity {
             String host = uri.getHost();
             int port = uri.getPort();
 
-            if (host == null || host.trim().isEmpty()) {
-                return "";
-            }
+            if (host == null || host.trim().isEmpty()) return "";
             if (port < 0) port = 8787;
-
             value = scheme + "://" + host + ":" + port + "/";
         } catch (Exception e) {
             return "";
@@ -235,12 +285,24 @@ public final class MainActivity extends Activity {
         return value;
     }
 
+    private final class NativeBridge {
+        @JavascriptInterface
+        public void disconnectRemote() {
+            runOnUiThread(() -> disconnectAndShowSetup());
+        }
+    }
+
     private void showRemote() {
+        startPersistentConnection();
+
         FrameLayout root = new FrameLayout(this);
         root.setBackgroundColor(BG);
 
         webView = new WebView(this);
         webView.setBackgroundColor(BG);
+        webView.setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_IMPORTANT, false);
+        webView.addJavascriptInterface(new NativeBridge(), "FT8HunterNative");
+
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
@@ -249,7 +311,7 @@ public final class MainActivity extends Activity {
         settings.setAllowFileAccess(false);
         settings.setMediaPlaybackRequiresUserGesture(true);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
-        settings.setUserAgentString(settings.getUserAgentString() + " FT8HunterRemote/2.0.0");
+        settings.setUserAgentString(settings.getUserAgentString() + " FT8HunterRemote/2.2.1");
 
         webView.setWebChromeClient(new WebChromeClient());
         webView.setWebViewClient(new WebViewClient() {
@@ -261,7 +323,9 @@ public final class MainActivity extends Activity {
                         "try{" +
                         "localStorage.setItem('ft8hunter-token'," + quoted + ");" +
                         "var t=document.querySelector('#token');if(t)t.value=" + quoted + ";" +
-                        "if(typeof connectRemote==='function')connectRemote();" +
+                        "if(typeof window.ensureRemoteConnected==='function')" +
+                        "window.ensureRemoteConnected();" +
+                        "else if(typeof connectRemote==='function')connectRemote();" +
                         "}catch(e){}";
                 view.evaluateJavascript(js, null);
             }
@@ -270,8 +334,10 @@ public final class MainActivity extends Activity {
             public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
                 super.onReceivedError(view, request, error);
                 if (request != null && request.isForMainFrame()) {
-                    Toast.makeText(MainActivity.this,
-                            "PC FT8 Hunter non raggiungibile", Toast.LENGTH_LONG).show();
+                    Toast.makeText(
+                            MainActivity.this,
+                            "PC FT8 Hunter non raggiungibile - nuovo tentativo automatico",
+                            Toast.LENGTH_LONG).show();
                 }
             }
         });
@@ -292,8 +358,14 @@ public final class MainActivity extends Activity {
         tools.addView(reload, new LinearLayout.LayoutParams(dp(48), dp(44)));
 
         Button setup = miniButton("⚙");
-        setup.setContentDescription("Impostazioni connessione");
-        setup.setOnClickListener(v -> showSetup());
+        setup.setContentDescription("Impostazioni Remote");
+        setup.setOnClickListener(v -> {
+            if (webView != null) {
+                webView.evaluateJavascript(
+                        "try{var b=document.querySelector('[data-tab=\"settings\"]');if(b)b.click();}catch(e){}",
+                        null);
+            }
+        });
         LinearLayout.LayoutParams setupLp = new LinearLayout.LayoutParams(dp(48), dp(44));
         setupLp.leftMargin = dp(4);
         tools.addView(setup, setupLp);
@@ -320,11 +392,24 @@ public final class MainActivity extends Activity {
     }
 
     @Override
+    protected void onResume() {
+        super.onResume();
+        if (prefs != null
+                && prefs.getBoolean(KEY_CONNECTED, false)
+                && webView != null) {
+            webView.evaluateJavascript(
+                    "try{if(typeof window.ensureRemoteConnected==='function')" +
+                    "window.ensureRemoteConnected();}catch(e){}",
+                    null);
+        }
+    }
+
+    @Override
     public void onBackPressed() {
         if (webView != null && webView.canGoBack()) {
             webView.goBack();
         } else if (webView != null) {
-            showSetup();
+            moveTaskToBack(true);
         } else {
             super.onBackPressed();
         }
@@ -332,11 +417,7 @@ public final class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
-        if (webView != null) {
-            webView.stopLoading();
-            webView.destroy();
-            webView = null;
-        }
+        disposeWebView();
         super.onDestroy();
     }
 }
