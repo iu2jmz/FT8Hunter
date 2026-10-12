@@ -63,6 +63,8 @@ function renderState(){
   $('#dxState').textContent=(state.dxFun&&state.dxFun.active)?'ATTIVO':'IDLE';
   $('#pskState').textContent=(state.pskReporter&&state.pskReporter.active)?'ATTIVO':'IDLE';
   renderBlacklist(state.blacklist||[]);
+  renderDx(state.dxFun||{});
+  renderPsk(state.pskReporter||{});
 }
 
 function renderBlacklist(rows){
@@ -75,6 +77,30 @@ function renderBlacklist(rows){
     root.appendChild(d);
   });
   root.querySelectorAll('button').forEach(b=>b.onclick=()=>command('blacklist_reinstate',{call:b.dataset.call}));
+}
+
+function renderDx(dx){
+  $('#dxCounters').textContent=(dx.spots||0)+' spot · '+(dx.candidates||0)+' candidati';
+  const root=$('#dxRows');root.innerHTML='';
+  const rows=dx.recent||[];
+  if(!rows.length){root.innerHTML='<p>Nessuno spot disponibile.</p>';return}
+  rows.forEach(x=>{
+    const d=document.createElement('div');d.className='list-row remote-event';
+    d.innerHTML='<div><b>'+x.call+'</b><br><small>'+x.utc+' · '+x.band+' · '+x.mode+'</small></div><small>'+x.mhz+' MHz</small><b>'+x.status+'</b>';
+    root.appendChild(d);
+  });
+}
+
+function renderPsk(psk){
+  $('#pskCounters').textContent=(psk.reports||0)+' report · '+(psk.candidates||0)+' candidati';
+  const root=$('#pskRows');root.innerHTML='';
+  const rows=psk.recent||[];
+  if(!rows.length){root.innerHTML='<p>Nessun report disponibile.</p>';return}
+  rows.forEach(x=>{
+    const d=document.createElement('div');d.className='list-row remote-event';
+    d.innerHTML='<div><b>'+x.call+'</b><br><small>'+x.country+' · '+x.band+' · '+x.mode+'</small></div><small>SNR '+x.snr+'</small><b>'+x.status+'</b>';
+    root.appendChild(d);
+  });
 }
 
 function renderSpectrum(m){
