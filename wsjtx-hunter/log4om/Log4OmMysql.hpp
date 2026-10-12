@@ -24,6 +24,14 @@ struct Log4OmQsoRow
   QString mode;
 };
 
+struct Log4OmRecentQso
+{
+  QString callsign;
+  QString qsoDate;
+  QString band;
+  QString mode;
+};
+
 struct Log4OmMysqlTestResult
 {
   bool ok {false};
@@ -42,6 +50,9 @@ public:
   static Log4OmMysqlTestResult testConnection (Log4OmMysqlSettings const& settings);
   static QVector<Log4OmQsoRow> loadWorkedQsos (Log4OmMysqlSettings const& settings,
                                                 QString * error = nullptr);
+  static QVector<Log4OmRecentQso> loadRecentQsos (Log4OmMysqlSettings const& settings,
+                                                   int limit = 30,
+                                                   QString * error = nullptr);
 
 private:
   static QString connectionName ();
