@@ -2028,6 +2028,19 @@ Replace-Required "widgets/mainwindow.cpp" @'
           monitor (command.value (QStringLiteral ("enabled")).toBool (true));
           ok (tr ("Monitor aggiornato"));
         }
+      else if (name == QStringLiteral ("tune"))
+        {
+          auto const enabled = command.value (QStringLiteral ("enabled")).toBool ();
+          if (enabled && !allowTransmit)
+            {
+              fail (tr ("TX remota non autorizzata nelle impostazioni PC"));
+            }
+          else
+            {
+              on_tuneButton_clicked (enabled);
+              ok (enabled ? tr ("TUNE attivo") : tr ("TUNE disattivato"));
+            }
+        }
       else if (name == QStringLiteral ("set_mode"))
         {
           if (m_transmitting || m_tune)
