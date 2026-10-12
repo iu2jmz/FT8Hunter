@@ -1,0 +1,63 @@
+name: Smoke Test FT8 Hunter 2.0.0 Runtime
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ wsjtx-v2-2.0.0 ]
+    paths:
+      - ".github/workflows/smoke-ft8hunter-2.yml"
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  smoke:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: wsjtx-v2-2.0.0
+
+      - name: Download successful 2.0.0 installer artifact
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force -Path artifact | Out-Null
+          gh run download 38241952664 -n FT8Hunter_Setup_v2.0.0 -D artifact
+          Get-ChildItem artifact -Recurse
+
+      - name: Install into isolated directory
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem artifact -Filter "FT8Hunter_Setup_v2.0.0.exe" -Recurse | Select-Object -First 1
+          if (-not $setup) { throw "Installer non trovato" }
+          $args = @("/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/SP-","/DIR=C:\FT8HunterSmoke")
+          $p = Start-Process -FilePath $setup.FullName -ArgumentList $args -PassThru -Wait
+          if ($p.ExitCode -ne 0) { throw "Installer exit code $($p.ExitCode)" }
+          if (-not (Test-Path "C:\FT8HunterSmoke\bin\wsjtx.exe")) { throw "wsjtx.exe non installato" }
+
+      - name: Launch runtime smoke test
+        shell: pwsh
+        run: |
+          $env:QT_QPA_PLATFORM = "offscreen"
+          $env:QT_DEBUG_PLUGINS = "0"
+          $exe = "C:\FT8HunterSmoke\bin\wsjtx.exe"
+          $work = "C:\FT8HunterSmoke\bin"
+          $p = Start-Process -FilePath $exe -WorkingDirectory $work -PassThru
+          Start-Sleep -Seconds 12
+          $p.Refresh()
+          if ($p.HasExited) {
+            Write-Host "FT8 Hunter exited during startup. ExitCode=$($p.ExitCode)"
+            Write-Host "Recent files under APPDATA/LOCALAPPDATA:"
+            Get-ChildItem $env:APPDATA,$env:LOCALAPPDATA -Recurse -ErrorAction SilentlyContinue |
+              Where-Object { $_.Name -match "wsjtx|FT8|Hunter|error|log" } |
+              Sort-Object LastWriteTime -Descending |
+              Select-Object -First 40 FullName,Length,LastWriteTime |
+              Format-Table -AutoSize
+            throw "Runtime startup smoke test failed"
+          }
+          Write-Host "FT8 Hunter still running after 12 seconds: startup OK on clean Windows profile."
+          Stop-Process -Id $p.Id -Force
