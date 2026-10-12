@@ -2037,6 +2037,7 @@ Replace-Required "widgets/mainwindow.cpp" @'
             }
           else
             {
+              ui->tuneButton->setChecked (enabled);
               on_tuneButton_clicked (enabled);
               ok (enabled ? tr ("TUNE attivo") : tr ("TUNE disattivato"));
             }
