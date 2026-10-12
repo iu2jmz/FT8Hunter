@@ -1,0 +1,77 @@
+name: Build FT8 Hunter Remote 2.0.0 APK
+
+on:
+  push:
+    branches: [ wsjtx-v2-2.0.0 ]
+    paths:
+      - "android/FT8HunterRemote/**"
+      - "wsjtx-hunter/branding/FT8Hunter.png"
+      - ".github/workflows/build-ft8hunter-remote-android.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ft8hunter-remote-2.0.0
+  cancel-in-progress: true
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout FT8 Hunter
+        uses: actions/checkout@v4
+        with:
+          ref: wsjtx-v2-2.0.0
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android platform and build tools
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.10.2"
+
+      - name: Install FT8 Hunter launcher icon
+        run: |
+          mkdir -p android/FT8HunterRemote/app/src/main/res/drawable
+          cp wsjtx-hunter/branding/FT8Hunter.png android/FT8HunterRemote/app/src/main/res/drawable/ft8hunter.png
+          test -f android/FT8HunterRemote/app/src/main/res/drawable/ft8hunter.png
+
+      - name: Build installable debug APK
+        run: |
+          gradle -p android/FT8HunterRemote clean assembleDebug --stacktrace
+          test -f android/FT8HunterRemote/app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Verify APK package
+        run: |
+          AAPT="$ANDROID_HOME/build-tools/35.0.0/aapt"
+          "$AAPT" dump badging android/FT8HunterRemote/app/build/outputs/apk/debug/app-debug.apk | head -n 8
+
+      - name: Prepare artifact
+        run: |
+          cp android/FT8HunterRemote/app/build/outputs/apk/debug/app-debug.apk FT8Hunter_Remote_2.0.0.apk
+          sha256sum FT8Hunter_Remote_2.0.0.apk | tee FT8Hunter_Remote_2.0.0.sha256
+          ls -lh FT8Hunter_Remote_2.0.0.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: FT8Hunter_Remote_2.0.0_APK
+          path: |
+            FT8Hunter_Remote_2.0.0.apk
+            FT8Hunter_Remote_2.0.0.sha256
+          if-no-files-found: error
