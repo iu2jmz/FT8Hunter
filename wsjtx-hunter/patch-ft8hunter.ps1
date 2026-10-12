@@ -1950,17 +1950,22 @@ Replace-Required "widgets/mainwindow.cpp" @'
       pskReporterPanel->openWindow ();
     });
 
-  // FT8 Hunter 2.0: styling coerente PC/app con scelta Dark/Light.
+  // FT8 Hunter 2.0.1 safe-start: il tema viene applicato solo dopo
+  // l'apertura, su scelta esplicita dell'operatore.
+  HunterStartupTrace::write (QStringLiteral ("MainWindow: entered 2.0.1 integration"));
   auto applyHunterTheme = [this] (HunterTheme::Mode mode) {
+      HunterStartupTrace::write (
+        QStringLiteral ("Theme: applying %1").arg (HunterTheme::name (mode)));
       HunterTheme::save (m_settings, mode);
       HunterTheme::apply (qApp, mode);
       m_useDarkStyle = mode == HunterTheme::Mode::Dark;
       m_wideGraph->setDarkStyle (m_useDarkStyle);
+      HunterStartupTrace::write (QStringLiteral ("Theme: applied"));
     };
   auto const savedHunterTheme = HunterTheme::load (m_settings);
-  HunterTheme::apply (qApp, savedHunterTheme);
-  m_useDarkStyle = savedHunterTheme == HunterTheme::Mode::Dark;
-  m_wideGraph->setDarkStyle (m_useDarkStyle);
+  HunterStartupTrace::write (
+    QStringLiteral ("Theme: saved preference %1, deferred")
+      .arg (HunterTheme::name (savedHunterTheme)));
 
   auto * appearanceMenu = hunterMenu->addMenu (tr ("Aspetto 2.0"));
   auto * darkThemeAction = appearanceMenu->addAction (tr ("Dark"));
@@ -1971,8 +1976,8 @@ Replace-Required "widgets/mainwindow.cpp" @'
   themeGroup->setExclusive (true);
   themeGroup->addAction (darkThemeAction);
   themeGroup->addAction (lightThemeAction);
-  darkThemeAction->setChecked (savedHunterTheme == HunterTheme::Mode::Dark);
-  lightThemeAction->setChecked (savedHunterTheme == HunterTheme::Mode::Light);
+  darkThemeAction->setChecked (false);
+  lightThemeAction->setChecked (false);
   connect (darkThemeAction, &QAction::triggered, this,
            [applyHunterTheme] { applyHunterTheme (HunterTheme::Mode::Dark); });
   connect (lightThemeAction, &QAction::triggered, this,
@@ -1981,7 +1986,7 @@ Replace-Required "widgets/mainwindow.cpp" @'
   auto remoteStateProvider =
     [this, monitorHunterPanel, bandHunterPanel, pskReporterPanel] () -> QJsonObject {
       QJsonObject state;
-      state.insert (QStringLiteral ("version"), QStringLiteral ("2.0.0"));
+      state.insert (QStringLiteral ("version"), QStringLiteral ("2.0.1"));
       state.insert (QStringLiteral ("myCall"), m_config.my_callsign ());
       state.insert (QStringLiteral ("frequencyHz"), static_cast<double> (m_freqNominal));
       state.insert (QStringLiteral ("band"), m_currentBand);
