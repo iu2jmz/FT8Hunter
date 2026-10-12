@@ -307,3 +307,15 @@ Aggiornamento coordinato PC + Android Remote.
 - FT8 Hunter seleziona la working frequency configurata sul PC per il modo corrente FT8 o FT4 e per la regione attiva
 - il cambio manuale e' bloccato durante TX, Tune, Auto o Hunter attivi
 - la banda corrente viene evidenziata nell'app
+
+
+## v2.2.2 - Remote manual band fix
+
+Correzione mirata del cambio banda manuale dalla Web App / app Android.
+
+- il comando remoto `set_band` ora usa la stessa routine nativa WSJT-X usata dal Band Hunter
+- dopo la selezione della banda viene chiamato `on_bandComboBox_activated(row)`
+- vengono quindi aggiornati correttamente working frequency, CAT/radio, dial e stato interno
+- eliminato il caso in cui l'app confermava il comando ma la radio restava sulla banda precedente
+- nessuna modifica alle logiche Monitor Hunter, DXFun, PSK Reporter, Band Hunter, watchdog o selezione TX
+- il client Android 2.2.1 resta compatibile: la correzione e' lato PC/server
