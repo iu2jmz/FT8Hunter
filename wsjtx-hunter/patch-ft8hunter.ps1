@@ -1999,7 +1999,7 @@ Replace-Required "widgets/mainwindow.cpp" @'
     };
 
   auto remoteCommandHandler =
-    [this, monitorHunterPanel, bandHunterPanel]
+    [this, monitorHunterPanel, bandHunterPanel, pskReporterPanel]
     (QJsonObject const& command, bool allowTransmit) -> QJsonObject {
       QJsonObject reply;
       auto ok = [&reply] (QString const& message) {
@@ -2135,6 +2135,52 @@ Replace-Required "widgets/mainwindow.cpp" @'
             {
               ok (enabled ? tr ("Band Hunter attivo") : tr ("Band Hunter disattivo"));
             }
+        }
+      else if (name == QStringLiteral ("dxfun_connect"))
+        {
+          if (!g_dxFunPanel)
+            {
+              fail (tr ("DXFun non disponibile"));
+            }
+          else
+            {
+              g_dxFunPanel->setConnectionEnabled (
+                command.value (QStringLiteral ("enabled")).toBool ());
+              ok (tr ("Connessione DXFun aggiornata"));
+            }
+        }
+      else if (name == QStringLiteral ("dxfun_auto"))
+        {
+          if (!g_dxFunPanel)
+            {
+              fail (tr ("DXFun non disponibile"));
+            }
+          else
+            {
+              auto const enabled = command.value (QStringLiteral ("enabled")).toBool ();
+              if (enabled && !allowTransmit)
+                fail (tr ("TX remota non autorizzata nelle impostazioni PC"));
+              else if (!g_dxFunPanel->setAutomaticEnabled (enabled))
+                fail (tr ("Impossibile cambiare AUTO QSY DXFun"));
+              else
+                ok (enabled ? tr ("DXFun AUTO QSY attivo") : tr ("DXFun AUTO QSY disattivo"));
+            }
+        }
+      else if (name == QStringLiteral ("psk_connect"))
+        {
+          pskReporterPanel->setConnectionEnabled (
+            command.value (QStringLiteral ("enabled")).toBool ());
+          ok (tr ("Connessione PSK Reporter aggiornata"));
+        }
+      else if (name == QStringLiteral ("psk_auto"))
+        {
+          auto const enabled = command.value (QStringLiteral ("enabled")).toBool ();
+          if (enabled && !allowTransmit)
+            fail (tr ("TX remota non autorizzata nelle impostazioni PC"));
+          else if (!pskReporterPanel->setAutomaticEnabled (enabled))
+            fail (tr ("PSK AUTO QSY non disponibile: attendere Log4OM/Worked Before"));
+          else
+            ok (enabled ? tr ("PSK AUTO QSY attivo") : tr ("PSK AUTO QSY disattivo"));
         }
       else if (name == QStringLiteral ("blacklist_reinstate"))
         {
