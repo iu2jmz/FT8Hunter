@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory=$true)][string]$SourceDir,
-    [string]$HunterVersion = "2.1.0"
+    [string]$HunterVersion = "2.2.0"
 )
 
 $ErrorActionPreference = "Stop"
@@ -1881,6 +1881,8 @@ Write-Host "Applied FT8 Hunter $HunterVersion branding + PSK Reporter local-CQ g
 
 Copy-Item "wsjtx-hunter/ui/HunterTheme.hpp" (Join-Path $hunterDir "HunterTheme.hpp") -Force
 Copy-Item "wsjtx-hunter/ui/HunterTheme.cpp" (Join-Path $hunterDir "HunterTheme.cpp") -Force
+Copy-Item "wsjtx-hunter/ui/HunterDashboard.hpp" (Join-Path $hunterDir "HunterDashboard.hpp") -Force
+Copy-Item "wsjtx-hunter/ui/HunterDashboard.cpp" (Join-Path $hunterDir "HunterDashboard.cpp") -Force
 Copy-Item "wsjtx-hunter/remote/HunterRemoteServer.hpp" (Join-Path $hunterDir "HunterRemoteServer.hpp") -Force
 Copy-Item "wsjtx-hunter/remote/HunterRemoteServer.cpp" (Join-Path $hunterDir "HunterRemoteServer.cpp") -Force
 Copy-Item "wsjtx-hunter/remote/HunterRemoteDialog.hpp" (Join-Path $hunterDir "HunterRemoteDialog.hpp") -Force
@@ -1895,6 +1897,7 @@ Replace-Required "CMakeLists.txt" @'
   FT8Hunter/PskReporterMqtt.cpp
   FT8Hunter/PskReporterPanel.cpp
   FT8Hunter/HunterTheme.cpp
+  FT8Hunter/HunterDashboard.cpp
   FT8Hunter/HunterRemoteServer.cpp
   FT8Hunter/HunterRemoteDialog.cpp
   Configuration.cpp
@@ -1905,6 +1908,7 @@ Replace-Required "widgets/mainwindow.cpp" @'
 '@ @'
 #include "FT8Hunter/PskReporterPanel.hpp"
 #include "FT8Hunter/HunterTheme.hpp"
+#include "FT8Hunter/HunterDashboard.hpp"
 #include "FT8Hunter/HunterRemoteServer.hpp"
 #include "FT8Hunter/HunterRemoteDialog.hpp"
 #include "FT8Hunter/HunterStartupTrace.hpp"
@@ -1950,10 +1954,10 @@ Replace-Required "widgets/mainwindow.cpp" @'
       pskReporterPanel->openWindow ();
     });
 
-  // FT8 Hunter 2.1.0: tema Futuristic applicato dopo il bootstrap.
+  // FT8 Hunter 2.2.0: Advanced UI applicata dopo il bootstrap.
   // Manteniamo il safe-start della 2.0.3 e applichiamo la skin solo quando
   // la MainWindow e tutti i pannelli Hunter sono gia' stati costruiti.
-  HunterStartupTrace::write (QStringLiteral ("MainWindow: entered 2.1.0 integration"));
+  HunterStartupTrace::write (QStringLiteral ("MainWindow: entered 2.2.0 integration"));
   auto applyHunterTheme = [this] (HunterTheme::Mode mode) {
       HunterStartupTrace::write (
         QStringLiteral ("Theme: applying %1").arg (HunterTheme::name (mode)));
@@ -1968,7 +1972,7 @@ Replace-Required "widgets/mainwindow.cpp" @'
     QStringLiteral ("Theme: saved preference %1, deferred")
       .arg (HunterTheme::name (savedHunterTheme)));
 
-  auto * appearanceMenu = hunterMenu->addMenu (tr ("Aspetto 2.1"));
+  auto * appearanceMenu = hunterMenu->addMenu (tr ("Aspetto 2.2"));
   auto * darkThemeAction = appearanceMenu->addAction (tr ("Dark Futuristic"));
   auto * lightThemeAction = appearanceMenu->addAction (tr ("Light Futuristic"));
   darkThemeAction->setCheckable (true);
@@ -1991,7 +1995,7 @@ Replace-Required "widgets/mainwindow.cpp" @'
   auto remoteStateProvider =
     [this, monitorHunterPanel, bandHunterPanel, pskReporterPanel] () -> QJsonObject {
       QJsonObject state;
-      state.insert (QStringLiteral ("version"), QStringLiteral ("2.1.0"));
+      state.insert (QStringLiteral ("version"), QStringLiteral ("2.2.0"));
       state.insert (QStringLiteral ("myCall"), m_config.my_callsign ());
       state.insert (QStringLiteral ("frequencyHz"), static_cast<double> (m_freqNominal));
       state.insert (QStringLiteral ("band"), m_currentBand);
@@ -2013,6 +2017,20 @@ Replace-Required "widgets/mainwindow.cpp" @'
       state.insert (QStringLiteral ("blacklist"), monitorHunterPanel->blacklistSnapshot ());
       return state;
     };
+
+  // FT8 Hunter 2.2.0 - Live Console: dashboard desktop in tempo reale.
+  HunterStartupTrace::write (QStringLiteral ("Dashboard 2.2: constructing"));
+  auto * hunterDashboard = new HunterDashboard {remoteStateProvider, this};
+  addDockWidget (Qt::BottomDockWidgetArea, hunterDashboard);
+
+  auto * dashboardAction = hunterMenu->addAction (tr ("Dashboard Live Console 2.2"));
+  dashboardAction->setCheckable (true);
+  dashboardAction->setChecked (true);
+  connect (dashboardAction, &QAction::toggled,
+           hunterDashboard, &QWidget::setVisible);
+  connect (hunterDashboard, &QDockWidget::visibilityChanged,
+           dashboardAction, &QAction::setChecked);
+  HunterStartupTrace::write (QStringLiteral ("Dashboard 2.2: ready"));
 
   auto remoteSpectrumProvider = [this] () -> QJsonObject {
       QJsonObject out;
@@ -2340,7 +2358,7 @@ Replace-Required "widgets/mainwindow.cpp" @'
         }
     });
 
-  auto * remoteAction = hunterMenu->addAction (tr ("FT8 Hunter Remote 2.1.0..."));
+  auto * remoteAction = hunterMenu->addAction (tr ("FT8 Hunter Remote 2.2.0..."));
   connect (remoteAction, &QAction::triggered, this, [this, ensureRemoteServer] {
       HunterStartupTrace::write (QStringLiteral ("Remote: settings dialog requested"));
       auto settings = HunterRemoteServer::loadSettings ();
@@ -2378,7 +2396,7 @@ Replace-Required "widgets/mainwindow.cpp" @'
         }
     });
 
-  HunterStartupTrace::write (QStringLiteral ("MainWindow: 2.1.0 integration complete"));
+  HunterStartupTrace::write (QStringLiteral ("MainWindow: 2.2.0 integration complete"));
 
   // FT8 Hunter: aggiorna automaticamente Worked Before da Log4OM.
 '@
@@ -2695,3 +2713,6 @@ Replace-Required "widgets/displaytext.cpp" @'
 '@
 
 Write-Host "Applied FT8 Hunter $HunterVersion Dark Futuristic adaptive decode colours."
+
+
+Write-Host "Applied FT8 Hunter $HunterVersion Advanced UI Live Console dashboard."
