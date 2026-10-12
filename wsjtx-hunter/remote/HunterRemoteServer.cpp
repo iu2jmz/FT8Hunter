@@ -8,6 +8,7 @@
 #include <QJsonParseError>
 #include <QNetworkInterface>
 #include <QSettings>
+#include <QStandardPaths>
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <QTimer>
@@ -17,9 +18,11 @@
 
 namespace
 {
-  QString settingsFile ()
+  QString settingsPath ()
   {
-    return QStringLiteral ("ft8hunter-remote");
+    auto dir = QStandardPaths::writableLocation (QStandardPaths::AppConfigLocation);
+    QDir {}.mkpath (dir);
+    return QDir {dir}.absoluteFilePath (QStringLiteral ("ft8hunter-remote.ini"));
   }
 
   QByteArray contentTypeFor (QString const& name)
@@ -66,8 +69,8 @@ HunterRemoteServer::~HunterRemoteServer ()
 
 HunterRemoteSettings HunterRemoteServer::loadSettings ()
 {
-  QSettings s;
-  s.beginGroup (settingsFile ());
+  QSettings s {settingsPath (), QSettings::IniFormat};
+  s.beginGroup (QStringLiteral ("Remote"));
   HunterRemoteSettings out;
   out.enabled = s.value (QStringLiteral ("enabled"), false).toBool ();
   out.lanAccess = s.value (QStringLiteral ("lanAccess"), false).toBool ();
@@ -83,8 +86,8 @@ HunterRemoteSettings HunterRemoteServer::loadSettings ()
 
 void HunterRemoteServer::saveSettings (HunterRemoteSettings const& settings)
 {
-  QSettings s;
-  s.beginGroup (settingsFile ());
+  QSettings s {settingsPath (), QSettings::IniFormat};
+  s.beginGroup (QStringLiteral ("Remote"));
   s.setValue (QStringLiteral ("enabled"), settings.enabled);
   s.setValue (QStringLiteral ("lanAccess"), settings.lanAccess);
   s.setValue (QStringLiteral ("allowTransmit"), settings.allowTransmit);
