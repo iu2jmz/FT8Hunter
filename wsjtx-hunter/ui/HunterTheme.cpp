@@ -149,6 +149,8 @@ void HunterTheme::apply (QApplication * app, Mode mode)
 {
   if (!app) return;
 
+  app->setProperty ("FT8HunterFuturisticDark", mode == Mode::Dark);
+
   if (auto * fusion = QStyleFactory::create (QStringLiteral ("Fusion")))
     app->setStyle (fusion);
 
@@ -241,6 +243,15 @@ QLabel[hunterState="waiting"]{background:#482816;color:#ffc27a;border:1px solid 
 QLabel#HunterTargetCard,QLabel#HunterTxCard,QLabel#HunterProgressCard,QLabel#BandHunterBandCard,QLabel#BandHunterTimeCard,QLabel#BandHunterNextCard{background:#081d2a;color:#d8f4fb;border:1px solid #1c4d61;border-radius:8px;padding:7px 10px;font-weight:700;}
 QLabel#HunterStatusLine{background:#071b27;color:#8fdaf0;border:1px solid #183f50;border-radius:7px;padding:6px 9px;}
 QLabel#HunterCountersLine{color:#91b9c7;padding:3px 6px;}
+QWidget#HunterPanelBody{background:#071722;}
+QLabel#HunterWarningLine{background:#2a2414;color:#ffd77a;border:1px solid #6b5827;border-radius:8px;padding:8px 10px;}
+QPushButton#HunterPrimaryButton{background:#0b536b;color:#edfcff;border-color:#22a9c8;font-weight:700;}
+QPushButton#HunterPrimaryButton:hover{background:#0d6f8d;border-color:#50ddff;}
+QPushButton#HunterAccentButton{background:#10364a;color:#7ee7ff;border-color:#2a6b84;font-weight:700;}
+QPushButton#HunterAccentButton:hover{background:#12475e;border-color:#4de0ff;}
+QPushButton#HunterDangerButton{background:#321923;color:#ff9aae;border-color:#7e384d;font-weight:700;}
+QPushButton#HunterDangerButton:hover{background:#4c1d2d;color:white;border-color:#ff5d7e;}
+QPushButton#HunterSecondaryButton{background:#0b202d;color:#a9cfdb;border-color:#254858;}
 )QSS"));
 
       applySpecialWidgets (true);
@@ -331,6 +342,15 @@ QLabel[hunterState="waiting"]{background:#ffead9;color:#8d4c10;border:1px solid 
 QLabel#HunterTargetCard,QLabel#HunterTxCard,QLabel#HunterProgressCard,QLabel#BandHunterBandCard,QLabel#BandHunterTimeCard,QLabel#BandHunterNextCard{background:#f4fbfd;color:#214958;border:1px solid #bedbe4;border-radius:8px;padding:7px 10px;font-weight:700;}
 QLabel#HunterStatusLine{background:#f0f8fa;color:#26728b;border:1px solid #c4dde5;border-radius:7px;padding:6px 9px;}
 QLabel#HunterCountersLine{color:#66828c;padding:3px 6px;}
+QWidget#HunterPanelBody{background:#f8fcfd;}
+QLabel#HunterWarningLine{background:#fff7df;color:#725716;border:1px solid #e4cd8b;border-radius:8px;padding:8px 10px;}
+QPushButton#HunterPrimaryButton{background:#0b9fc7;color:white;border-color:#007c9e;font-weight:700;}
+QPushButton#HunterPrimaryButton:hover{background:#078bb0;border-color:#006d88;}
+QPushButton#HunterAccentButton{background:#e2f4f9;color:#08718f;border-color:#96cad8;font-weight:700;}
+QPushButton#HunterAccentButton:hover{background:#d3eff6;border-color:#38a9c6;}
+QPushButton#HunterDangerButton{background:#fff0f3;color:#a12a46;border-color:#e6a5b4;font-weight:700;}
+QPushButton#HunterDangerButton:hover{background:#ffe1e8;color:#8b1c36;border-color:#df5572;}
+QPushButton#HunterSecondaryButton{background:#eef6f8;color:#486c79;border-color:#c2d9e1;}
 )QSS"));
 
       applySpecialWidgets (false);
