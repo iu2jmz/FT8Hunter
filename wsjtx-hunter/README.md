@@ -318,4 +318,9 @@ Correzione mirata del cambio banda manuale dalla Web App / app Android.
 - vengono quindi aggiornati correttamente working frequency, CAT/radio, dial e stato interno
 - eliminato il caso in cui l'app confermava il comando ma la radio restava sulla banda precedente
 - nessuna modifica alle logiche Monitor Hunter, DXFun, PSK Reporter, Band Hunter, watchdog o selezione TX
-- il client Android 2.2.1 resta compatibile: la correzione e' lato PC/server
+- il Remote mostra in modo persistente **TX REMOTA ABILITATA/BLOCCATA**
+- Monitor Hunter espone readiness filtro DXCC, coda, QSO completati e tentativi falliti
+- Band Hunter, DXFun e PSK Reporter mostrano readiness/connessione/candidati invece di apparire vuoti
+- gli errori dei comandi Hunter restano visibili piu' a lungo nell'app
+- cache Web Remote invalidata a 2.2.2 per evitare asset JavaScript vecchi
+- APK Android riallineato alla 2.2.2
