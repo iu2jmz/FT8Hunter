@@ -257,6 +257,22 @@ void PskReporterPanel::setWorkedBeforeState (bool ready, int recordCount, QStrin
       .arg (workedBeforeRecords_));
 }
 
+QJsonObject PskReporterPanel::remoteSnapshot () const
+{
+  QJsonObject out;
+  out.insert (QStringLiteral ("active"), huntActive ());
+  out.insert (QStringLiteral ("connected"), client_ && client_->connected ());
+  out.insert (QStringLiteral ("workedBeforeReady"), workedBeforeReady_);
+  out.insert (QStringLiteral ("workedBeforeRecords"), workedBeforeRecords_);
+  out.insert (QStringLiteral ("target"), active_.request.callsign);
+  out.insert (QStringLiteral ("band"), active_.request.band);
+  out.insert (QStringLiteral ("mode"), active_.request.mode);
+  out.insert (QStringLiteral ("status"), active_.request.status);
+  out.insert (QStringLiteral ("reports"), static_cast<double> (reports_));
+  out.insert (QStringLiteral ("candidates"), static_cast<double> (candidateReports_));
+  return out;
+}
+
 void PskReporterPanel::yieldToDxFun ()
 {
   if (!listening_) return;
