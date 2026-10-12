@@ -15,3 +15,12 @@ body.light .tabs button{background:white}.glass{background:linear-gradient(160de
 .overlay{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 20%,#103d69,#020711 70%);padding:20px}.overlay.hidden{display:none}.login-card{width:min(440px,100%);padding:28px;text-align:center}.login-card img{width:88px;height:88px;border-radius:20px}.login-card h1{margin:14px 0 3px}.login-card p{color:var(--cyan)}.login-card label{display:block;text-align:left;color:var(--muted);margin:18px 0 5px}.login-card input{width:100%;padding:12px;border-radius:10px;border:1px solid var(--line);background:#071422;color:white}.login-card button{width:100%;margin-top:12px;padding:12px;border:0;border-radius:10px;font-weight:800}.primary{background:linear-gradient(135deg,#007eea,#00d2ef);color:white}.login-card small{display:block;color:#7fa3bc;margin-top:16px}.error{color:#ff7180;margin-top:10px}
 #toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(30px);opacity:0;transition:.25s;background:#081522;border:1px solid #245174;border-radius:12px;padding:10px 16px;z-index:90}#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 @media(max-width:700px){.controls-grid,.status-grid{grid-template-columns:1fr}.frequency{font-size:44px}.subline{gap:12px;font-size:12px}.action-row{grid-template-columns:1fr 1fr}.action-row #refreshBtn{grid-column:1/-1}.identity #connText{display:none}.tabs{margin-right:-12px}.card-title span{display:none}}
+
+.manual-band-card{margin-top:12px;padding:12px}
+.band-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.band-grid button{border:1px solid var(--line);background:var(--panel2);color:var(--text);border-radius:10px;padding:11px 8px;font-weight:800}
+.band-grid button:hover{border-color:var(--cyan)}
+.band-grid button.active{background:linear-gradient(135deg,#0075e8,#00c6e9);border-color:#66eaff;color:#fff;box-shadow:0 0 18px rgba(0,190,255,.25)}
+body.light .band-grid button{background:#fff}
+body.light .band-grid button.active{background:linear-gradient(135deg,#0a88d6,#17b9d1);color:#fff}
+@media(max-width:700px){.band-grid{grid-template-columns:repeat(3,1fr)}}
