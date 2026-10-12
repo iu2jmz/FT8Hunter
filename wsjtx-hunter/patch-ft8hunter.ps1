@@ -2296,26 +2296,55 @@ Replace-Required "widgets/mainwindow.cpp" @'
       return reply;
     };
 
-  auto * remoteServer = new HunterRemoteServer {
-    remoteStateProvider, remoteSpectrumProvider, remoteCommandHandler, this};
+  auto ensureRemoteServer =
+    [this, remoteStateProvider, remoteSpectrumProvider, remoteCommandHandler] ()
+      -> HunterRemoteServer * {
+      if (!m_hunterRemoteServer)
+        {
+          HunterStartupTrace::write (QStringLiteral ("Remote: constructing server"));
+          m_hunterRemoteServer = new HunterRemoteServer {
+            remoteStateProvider, remoteSpectrumProvider, remoteCommandHandler, this};
+          HunterStartupTrace::write (QStringLiteral ("Remote: server constructed"));
+        }
+      return m_hunterRemoteServer;
+    };
 
-  auto remoteSettings = HunterRemoteServer::loadSettings ();
-  HunterRemoteServer::saveSettings (remoteSettings);
-  if (remoteSettings.enabled)
-    {
+  // Safe-start: l'eventuale auto-avvio Remote avviene soltanto dopo che
+  // la finestra principale ha avuto il tempo di entrare nell'event loop.
+  QTimer::singleShot (1800, this, [this, ensureRemoteServer] {
+      HunterStartupTrace::write (QStringLiteral ("Remote: deferred startup check"));
+      auto remoteSettings = HunterRemoteServer::loadSettings ();
+      HunterRemoteServer::saveSettings (remoteSettings);
+      if (!remoteSettings.enabled)
+        {
+          HunterStartupTrace::write (QStringLiteral ("Remote: disabled"));
+          return;
+        }
+
+      auto * remoteServer = ensureRemoteServer ();
       QString error;
       if (!remoteServer->start (remoteSettings, &error))
-        showStatusMessage (tr ("FT8 Hunter Remote non avviato: %1").arg (error));
-    }
+        {
+          HunterStartupTrace::write (
+            QStringLiteral ("Remote: start failed: %1").arg (error));
+          showStatusMessage (tr ("FT8 Hunter Remote non avviato: %1").arg (error));
+        }
+      else
+        {
+          HunterStartupTrace::write (QStringLiteral ("Remote: started"));
+        }
+    });
 
-  auto * remoteAction = hunterMenu->addAction (tr ("FT8 Hunter Remote 2.0.0..."));
-  connect (remoteAction, &QAction::triggered, this, [this, remoteServer] {
+  auto * remoteAction = hunterMenu->addAction (tr ("FT8 Hunter Remote 2.0.1..."));
+  connect (remoteAction, &QAction::triggered, this, [this, ensureRemoteServer] {
+      HunterStartupTrace::write (QStringLiteral ("Remote: settings dialog requested"));
       auto settings = HunterRemoteServer::loadSettings ();
       HunterRemoteDialog dlg {settings, this};
       if (QDialog::Accepted != dlg.exec ()) return;
 
       settings = dlg.settings ();
       HunterRemoteServer::saveSettings (settings);
+      auto * remoteServer = ensureRemoteServer ();
       remoteServer->stop ();
 
       if (settings.enabled)
@@ -2323,12 +2352,15 @@ Replace-Required "widgets/mainwindow.cpp" @'
           QString error;
           if (!remoteServer->start (settings, &error))
             {
+              HunterStartupTrace::write (
+                QStringLiteral ("Remote: manual start failed: %1").arg (error));
               MessageBox::warning_message (
                 this, tr ("FT8 Hunter Remote"),
                 tr ("Impossibile avviare il server remoto: %1").arg (error));
             }
           else
             {
+              HunterStartupTrace::write (QStringLiteral ("Remote: manual start OK"));
               showStatusMessage (
                 tr ("FT8 Hunter Remote attivo: %1")
                   .arg (HunterRemoteServer::appUrl (settings)));
@@ -2336,11 +2368,14 @@ Replace-Required "widgets/mainwindow.cpp" @'
         }
       else
         {
+          HunterStartupTrace::write (QStringLiteral ("Remote: manually disabled"));
           showStatusMessage (tr ("FT8 Hunter Remote disattivato"));
         }
     });
 
+  HunterStartupTrace::write (QStringLiteral ("MainWindow: 2.0.1 integration complete"));
+
   // FT8 Hunter: aggiorna automaticamente Worked Before da Log4OM.
 '@
 
-Write-Host "Applied FT8 Hunter $HunterVersion 2.0 styling + authenticated Remote PWA server."
+Write-Host "Applied FT8 Hunter $HunterVersion safe-start styling + deferred authenticated Remote PWA server."
