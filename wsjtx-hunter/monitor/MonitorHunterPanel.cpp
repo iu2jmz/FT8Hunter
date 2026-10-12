@@ -8,6 +8,7 @@
 #include <QLabel>
 #include <QPushButton>
 #include <QSettings>
+#include <QStyle>
 #include <QTableWidget>
 #include <QTableWidgetItem>
 #include <QTimer>
@@ -16,6 +17,18 @@
 namespace
 {
   constexpr int CandidateFreshSeconds = 45;
+
+  void setHunterState (QLabel * label, QString const& state)
+  {
+    if (!label) return;
+    label->setProperty ("hunterState", state);
+    if (label->style ())
+      {
+        label->style ()->unpolish (label);
+        label->style ()->polish (label);
+      }
+    label->update ();
+  }
   constexpr int FailedCooldownSeconds = 300;
   constexpr int BlacklistSeconds = 5 * 60 * 60;
 }
@@ -56,6 +69,7 @@ MonitorHunterPanel::MonitorHunterPanel (QString const& myCall,
   , busyTimer_ {new QTimer {this}}
   , blacklistTimer_ {new QTimer {this}}
 {
+  setObjectName (QStringLiteral ("FT8HunterMonitor"));
   setWindowTitle (tr ("FT8 Hunter - Monitor Hunter"));
   setModal (false);
   setMinimumSize (930, 500);
@@ -68,6 +82,16 @@ MonitorHunterPanel::MonitorHunterPanel (QString const& myCall,
   autoTxSlotCheck_->setChecked (true);
   autoTxSlotCheck_->setToolTip (
     tr ("Analizza lo spettro recente del Grafico Ampio, sceglie una zona quieta e blocca la TX li' per tutto il QSO."));
+
+  stateLabel_->setObjectName (QStringLiteral ("HunterStateBanner"));
+  targetLabel_->setObjectName (QStringLiteral ("HunterTargetCard"));
+  txSlotLabel_->setObjectName (QStringLiteral ("HunterTxCard"));
+  progressLabel_->setObjectName (QStringLiteral ("HunterProgressCard"));
+  filterLabel_->setObjectName (QStringLiteral ("HunterStatusLine"));
+  queueLabel_->setObjectName (QStringLiteral ("HunterCountersLine"));
+  stopButton_->setObjectName (QStringLiteral ("HunterDangerButton"));
+  blacklistButton_->setObjectName (QStringLiteral ("HunterAccentButton"));
+  clearButton_->setObjectName (QStringLiteral ("HunterSecondaryButton"));
 
   stateLabel_->setAlignment (Qt::AlignCenter);
   stateLabel_->setMinimumHeight (54);
@@ -121,6 +145,7 @@ MonitorHunterPanel::MonitorHunterPanel (QString const& myCall,
   root->addWidget (table_);
   setLayout (root);
 
+  blacklistDialog_->setObjectName (QStringLiteral ("FT8HunterBlacklist"));
   blacklistDialog_->setWindowTitle (tr ("FT8 Hunter - Blacklist Monitor Hunter"));
   blacklistDialog_->setModal (false);
   blacklistDialog_->setMinimumSize (560, 320);
@@ -215,36 +240,31 @@ MonitorHunterPanel::MonitorHunterPanel (QString const& myCall,
 void MonitorHunterPanel::showOffState (QString const& detail)
 {
   stateLabel_->setText (tr ("OFF") + (detail.isEmpty () ? QString {} : QStringLiteral ("  -  ") + detail));
-  stateLabel_->setStyleSheet (
-    QStringLiteral ("QLabel { background:#606060; color:white; border:1px solid #404040; padding:8px; }"));
+  setHunterState (stateLabel_, QStringLiteral ("off"));
 }
 
 void MonitorHunterPanel::showListeningState (QString const& detail)
 {
   stateLabel_->setText (tr ("ASCOLTO") + (detail.isEmpty () ? QString {} : QStringLiteral ("  -  ") + detail));
-  stateLabel_->setStyleSheet (
-    QStringLiteral ("QLabel { background:#55c271; color:black; border:1px solid #2f8f49; padding:8px; }"));
+  setHunterState (stateLabel_, QStringLiteral ("listening"));
 }
 
 void MonitorHunterPanel::showCallingState (QString const& detail)
 {
   stateLabel_->setText (tr ("CHIAMATA") + (detail.isEmpty () ? QString {} : QStringLiteral ("  -  ") + detail));
-  stateLabel_->setStyleSheet (
-    QStringLiteral ("QLabel { background:#ffd54f; color:black; border:1px solid #b7950b; padding:8px; }"));
+  setHunterState (stateLabel_, QStringLiteral ("calling"));
 }
 
 void MonitorHunterPanel::showBusyState (QString const& detail)
 {
   stateLabel_->setText (tr ("DX OCCUPATO") + (detail.isEmpty () ? QString {} : QStringLiteral ("  -  ") + detail));
-  stateLabel_->setStyleSheet (
-    QStringLiteral ("QLabel { background:#ff9800; color:black; border:1px solid #b26a00; padding:8px; }"));
+  setHunterState (stateLabel_, QStringLiteral ("busy"));
 }
 
 void MonitorHunterPanel::showQsoState (QString const& detail)
 {
   stateLabel_->setText (tr ("QSO") + (detail.isEmpty () ? QString {} : QStringLiteral ("  -  ") + detail));
-  stateLabel_->setStyleSheet (
-    QStringLiteral ("QLabel { background:#e95b54; color:white; border:1px solid #a93226; padding:8px; }"));
+  setHunterState (stateLabel_, QStringLiteral ("qso"));
 }
 
 void MonitorHunterPanel::updateActiveLabels ()
