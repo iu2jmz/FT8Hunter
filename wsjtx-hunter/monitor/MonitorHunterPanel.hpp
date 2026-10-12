@@ -6,6 +6,8 @@
 #include <QDialog>
 #include <QHash>
 #include <QList>
+#include <QJsonArray>
+#include <QJsonObject>
 #include <QString>
 #include <functional>
 
@@ -72,6 +74,9 @@ public:
   bool automaticEnabled () const;
   bool setAutomaticEnabled (bool enabled);
   bool enqueueExternalCandidate (MonitorHunterCandidate const& candidate);
+  QJsonObject remoteSnapshot () const;
+  QJsonArray blacklistSnapshot () const;
+  bool reinstateCall (QString const& call);
   int nextTxPowerPercent (QString const& txMessage);
   void transmissionExhausted ();
   void qsoLogged (QString const& call);
