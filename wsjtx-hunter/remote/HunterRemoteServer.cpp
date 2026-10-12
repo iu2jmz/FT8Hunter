@@ -69,7 +69,7 @@ HunterRemoteSettings HunterRemoteServer::loadSettings ()
   s.beginGroup (settingsFile ());
   HunterRemoteSettings out;
   out.enabled = s.value (QStringLiteral ("enabled"), false).toBool ();
-  out.lanAccess = s.value (QStringLiteral ("lanAccess"), true).toBool ();
+  out.lanAccess = s.value (QStringLiteral ("lanAccess"), false).toBool ();
   out.allowTransmit = s.value (QStringLiteral ("allowTransmit"), false).toBool ();
   out.httpPort = static_cast<quint16> (s.value (QStringLiteral ("httpPort"), 8787).toUInt ());
   out.webSocketPort = static_cast<quint16> (s.value (QStringLiteral ("webSocketPort"), 8788).toUInt ());
