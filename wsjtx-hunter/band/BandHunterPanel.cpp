@@ -8,6 +8,7 @@
 #include <QLabel>
 #include <QSettings>
 #include <QSignalBlocker>
+#include <QStyle>
 #include <QTime>
 #include <QTimer>
 #include <QVBoxLayout>
@@ -15,6 +16,18 @@
 
 namespace
 {
+  void setBandState (QLabel * label, QString const& state)
+  {
+    if (!label) return;
+    label->setProperty ("hunterState", state);
+    if (label->style ())
+      {
+        label->style ()->unpolish (label);
+        label->style ()->polish (label);
+      }
+    label->update ();
+  }
+
   QStringList const HunterBands {
     QStringLiteral ("80m"), QStringLiteral ("60m"), QStringLiteral ("40m"),
     QStringLiteral ("30m"), QStringLiteral ("20m"), QStringLiteral ("17m"),
@@ -54,10 +67,16 @@ BandHunterPanel::BandHunterPanel (QsyHandler qsyHandler,
   , tickTimer_ {new QTimer {this}}
   , stabilizeTimer_ {new QTimer {this}}
 {
+  setObjectName (QStringLiteral ("FT8HunterBand"));
   setWindowTitle (tr ("FT8 Hunter - Band Hunter"));
   setModal (false);
   setMinimumWidth (720);
   setAttribute (Qt::WA_DeleteOnClose, false);
+
+  stateLabel_->setObjectName (QStringLiteral ("HunterStateBanner"));
+  bandLabel_->setObjectName (QStringLiteral ("BandHunterBandCard"));
+  timeLabel_->setObjectName (QStringLiteral ("BandHunterTimeCard"));
+  nextLabel_->setObjectName (QStringLiteral ("BandHunterNextCard"));
 
   stateLabel_->setAlignment (Qt::AlignCenter);
   stateLabel_->setMinimumHeight (46);
@@ -368,14 +387,11 @@ void BandHunterPanel::updateLabels (QString const& state)
   stateLabel_->setText (state);
 
   if (!active ())
-    stateLabel_->setStyleSheet (
-      QStringLiteral ("QLabel { background:#606060; color:white; border:1px solid #404040; padding:7px; }"));
+    setBandState (stateLabel_, QStringLiteral ("off"));
   else if (externalPaused_ || state.contains (tr ("PAUSA")) || state.contains (tr ("ATTESA")))
-    stateLabel_->setStyleSheet (
-      QStringLiteral ("QLabel { background:#ffb74d; color:black; border:1px solid #b26a00; padding:7px; }"));
+    setBandState (stateLabel_, QStringLiteral ("waiting"));
   else
-    stateLabel_->setStyleSheet (
-      QStringLiteral ("QLabel { background:#55c271; color:black; border:1px solid #2f8f49; padding:7px; }"));
+    setBandState (stateLabel_, QStringLiteral ("active"));
 
   if (currentBand_.isEmpty ())
     {
