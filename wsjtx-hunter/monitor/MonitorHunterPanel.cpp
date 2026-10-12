@@ -649,6 +649,10 @@ QJsonObject MonitorHunterPanel::remoteSnapshot () const
                 .arg (watchdog_.callingTransmissions ())
                 .arg (HunterQsoWatchdog::MaxCallingTransmissions));
   out.insert (QStringLiteral ("blacklistCount"), blacklist_.size ());
+  out.insert (QStringLiteral ("filterReady"), filterActive_);
+  out.insert (QStringLiteral ("queueCount"), queue_.size ());
+  out.insert (QStringLiteral ("completedQsos"), static_cast<double> (completedQsos_));
+  out.insert (QStringLiteral ("failedCalls"), static_cast<double> (failedCalls_));
   return out;
 }
 
