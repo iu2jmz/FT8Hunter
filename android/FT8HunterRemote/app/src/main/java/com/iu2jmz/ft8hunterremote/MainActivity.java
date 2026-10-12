@@ -161,7 +161,7 @@ public final class MainActivity extends Activity {
         title.setGravity(Gravity.CENTER);
         root.addView(title);
 
-        TextView call = label("IU2JMZ  ·  2.2.2", 15, CYAN, true);
+        TextView call = label("IU2JMZ  ·  2.2.3", 15, CYAN, true);
         call.setGravity(Gravity.CENTER);
         LinearLayout.LayoutParams callLp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
@@ -248,7 +248,7 @@ public final class MainActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT, dp(52)));
 
         TextView help = label(
-                "Sul PC: Tools → FT8 Hunter → FT8 Hunter Remote 2.2.2. " +
+                "Sul PC: Tools → FT8 Hunter → FT8 Hunter Remote 2.2.3. " +
                 "Attiva LAN/VPN. Dopo la connessione l'app mantiene il collegamento " +
                 "anche in secondo piano e a schermo spento finché non premi Disconnetti.",
                 12, MUTED, false);
@@ -311,7 +311,9 @@ public final class MainActivity extends Activity {
         settings.setAllowFileAccess(false);
         settings.setMediaPlaybackRequiresUserGesture(true);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
-        settings.setUserAgentString(settings.getUserAgentString() + " FT8HunterRemote/2.2.2");
+        settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
+        webView.clearCache(true);
+        settings.setUserAgentString(settings.getUserAgentString() + " FT8HunterRemote/2.2.3");
 
         webView.setWebChromeClient(new WebChromeClient());
         webView.setWebViewClient(new WebViewClient() {
