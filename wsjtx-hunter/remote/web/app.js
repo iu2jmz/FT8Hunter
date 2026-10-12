@@ -94,8 +94,8 @@ function renderState(){
   $('#rxInput').value=state.rxOffset==null?1500:state.rxOffset;
   $('#txInput').value=state.txOffset==null?1500:state.txOffset;
   if(state.rfPower!=null){$('#rfPower').textContent=state.rfPower;$('#power').value=state.rfPower}
-  $('.mode').forEach(b=>b.classList.toggle('active',b.dataset.mode===state.mode));
-  $('[data-band]').forEach(b=>b.classList.toggle('active',b.dataset.band===state.band));
+  $$('.mode').forEach(b=>b.classList.toggle('active',b.dataset.mode===state.mode));
+  $$('[data-band]').forEach(b=>b.classList.toggle('active',b.dataset.band===state.band));
   $('#monitorState').textContent=(state.monitorHunter&&state.monitorHunter.state)||'--';
   $('#monitorTarget').textContent=(state.monitorHunter&&state.monitorHunter.target)||'Nessun target';
   $('#targetCall').textContent=(state.monitorHunter&&state.monitorHunter.target)||'—';
@@ -197,8 +197,8 @@ $$('.tabs button').forEach(b=>b.onclick=()=>{
   b.classList.add('active');$('#'+b.dataset.tab).classList.add('active');
   if(b.dataset.tab==='log')command('get_log');
 });
-$('.mode').forEach(b=>b.onclick=()=>command('set_mode',{mode:b.dataset.mode}));
-$('[data-band]').forEach(b=>b.onclick=()=>command('set_band',{band:b.dataset.band}));
+$$('.mode').forEach(b=>b.onclick=()=>command('set_mode',{mode:b.dataset.mode}));
+$$('[data-band]').forEach(b=>b.onclick=()=>command('set_band',{band:b.dataset.band}));
 $$('[data-rx]').forEach(b=>b.onclick=()=>command('set_rx_offset',{value:Number($('#rxInput').value)+Number(b.dataset.rx)}));
 $$('[data-tx]').forEach(b=>b.onclick=()=>command('set_tx_offset',{value:Number($('#txInput').value)+Number(b.dataset.tx)}));
 $('#rxInput').onchange=()=>command('set_rx_offset',{value:Number($('#rxInput').value)});
