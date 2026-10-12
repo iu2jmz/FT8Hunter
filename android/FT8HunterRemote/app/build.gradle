@@ -1,0 +1,31 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.iu2jmz.ft8hunterremote'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId "com.iu2jmz.ft8hunterremote"
+        minSdk 26
+        targetSdk 35
+        versionCode 2000000
+        versionName "2.0.0"
+    }
+
+    buildTypes {
+        debug {
+            applicationIdSuffix ""
+            versionNameSuffix ""
+        }
+        release {
+            minifyEnabled false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
