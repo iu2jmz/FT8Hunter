@@ -1,4 +1,5 @@
 #include "HunterTheme.hpp"
+#include <QColor>
 
 #include <QApplication>
 #include <QPalette>
