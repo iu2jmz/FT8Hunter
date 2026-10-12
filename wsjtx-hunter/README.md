@@ -160,18 +160,20 @@ Nuova finestra **Tools > FT8 Hunter > Band Hunter...**.
 - le frequenze di banda sono prese dalla lista FT8 configurata in WSJT-X; una banda non disponibile viene saltata
 
 
-## v1.0.13 Beta - funzioni sperimentali
+## v1.0.14 stabile - funzioni integrate
 
-Questa Beta parte dalla 1.0.13 stabile e resta su un ramo separato.
+La 1.0.14 integra nella linea stabile tutte le funzioni collaudate nella 1.0.13 Beta.
+Mantiene il nome applicazione **FT8 Hunter**, quindi riutilizza direttamente le configurazioni
+della 1.0.12/1.0.13, inclusi radio/audio e Log4OM/MySQL.
 
-### Nuovo branding IU2JMZ
+### Branding IU2JMZ
 
 - logo unico **IU2JMZ / FT8 Hunter** per eseguibile, taskbar/finestra, installer, collegamenti Windows e splash
-- la Beta usa identita' e directory separate dalla versione stabile
+- la 1.0.14 usa l'identita' stabile FT8 Hunter e conserva i dati/configurazioni esistenti
 
 ### Disinstallazione Windows
 
-- voce dedicata **FT8 Hunter 1.0.13 Beta** in App installate / Programmi e funzionalita'
+- voce dedicata **FT8 Hunter 1.0.14** in App installate / Programmi e funzionalita'
 - disinstallazione standard di programma e collegamenti
 - durante la rimozione viene chiesto se eliminare anche configurazioni e dati personali
 - la scelta predefinita conserva i dati personali
@@ -185,11 +187,13 @@ Questa Beta parte dalla 1.0.13 stabile e resta su un ramo separato.
 - pulsanti **Riabilita** e **Riabilita tutte**
 - la blacklist viene salvata nelle impostazioni e sopravvive al riavvio della Beta
 
-### PSK Reporter sperimentale
+### PSK Reporter
 
-Nuova finestra **Tools > FT8 Hunter > PSK Reporter Beta...**.
+Nuova finestra **Tools > FT8 Hunter > PSK Reporter...**.
 
 - sorgente MQTT near-real-time separata dal DXFun Cluster
+- classificazione PSK abilitata solo dopo il caricamento riuscito del Worked Before/Log4OM; in errore non produce falsi NEW
+- la 1.0.14 ricarica esplicitamente Worked Before/Log4OM all'avvio del pannello PSK
 - ascolto dei report FT8/FT4 sulle bande 80/60/40/30/20/17/15/12/10 m
 - classificazione NEW DXCC / NEW su banda tramite lo stesso Worked Before Log4OM
 - deduplicazione e scarto dei report vecchi
