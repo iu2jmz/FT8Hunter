@@ -593,6 +593,30 @@ bool DxFunClusterPanel::huntActive () const
   return huntState_ != HuntState::Idle;
 }
 
+QJsonObject DxFunClusterPanel::remoteSnapshot () const
+{
+  QString state = QStringLiteral ("IDLE");
+  switch (huntState_)
+    {
+    case HuntState::Listening: state = QStringLiteral ("LISTENING"); break;
+    case HuntState::Calling: state = QStringLiteral ("CALLING"); break;
+    case HuntState::Busy: state = QStringLiteral ("DX OCCUPATO"); break;
+    case HuntState::Qso: state = QStringLiteral ("QSO"); break;
+    case HuntState::Idle: break;
+    }
+
+  QJsonObject out;
+  out.insert (QStringLiteral ("active"), huntActive ());
+  out.insert (QStringLiteral ("state"), state);
+  out.insert (QStringLiteral ("target"), active_.request.callsign);
+  out.insert (QStringLiteral ("band"), active_.request.band);
+  out.insert (QStringLiteral ("mode"), active_.request.mode);
+  out.insert (QStringLiteral ("status"), active_.request.status);
+  out.insert (QStringLiteral ("spots"), static_cast<double> (allSpots_));
+  out.insert (QStringLiteral ("candidates"), static_cast<double> (candidateSpots_));
+  return out;
+}
+
 int DxFunClusterPanel::nextTxPowerPercent (QString const& txMessage)
 {
   if (!qsoActive ()) return -1;
