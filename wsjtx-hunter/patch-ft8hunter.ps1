@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory=$true)][string]$SourceDir,
-    [string]$HunterVersion = "2.0.2"
+    [string]$HunterVersion = "2.0.3"
 )
 
 $ErrorActionPreference = "Stop"
@@ -1986,7 +1986,7 @@ Replace-Required "widgets/mainwindow.cpp" @'
   auto remoteStateProvider =
     [this, monitorHunterPanel, bandHunterPanel, pskReporterPanel] () -> QJsonObject {
       QJsonObject state;
-      state.insert (QStringLiteral ("version"), QStringLiteral ("2.0.2"));
+      state.insert (QStringLiteral ("version"), QStringLiteral ("2.0.3"));
       state.insert (QStringLiteral ("myCall"), m_config.my_callsign ());
       state.insert (QStringLiteral ("frequencyHz"), static_cast<double> (m_freqNominal));
       state.insert (QStringLiteral ("band"), m_currentBand);
@@ -2335,7 +2335,7 @@ Replace-Required "widgets/mainwindow.cpp" @'
         }
     });
 
-  auto * remoteAction = hunterMenu->addAction (tr ("FT8 Hunter Remote 2.0.2..."));
+  auto * remoteAction = hunterMenu->addAction (tr ("FT8 Hunter Remote 2.0.3..."));
   connect (remoteAction, &QAction::triggered, this, [this, ensureRemoteServer] {
       HunterStartupTrace::write (QStringLiteral ("Remote: settings dialog requested"));
       auto settings = HunterRemoteServer::loadSettings ();
@@ -2500,3 +2500,85 @@ Replace-Required "widgets/mainwindow.cpp" @'
 '@
 
 Write-Host "Applied FT8 Hunter $HunterVersion detailed startup checkpoints."
+
+
+# ---------------------------------------------------------------------------
+# FT8 Hunter 2.0.3 - serializza i reload Worked Before / Log4OM
+# Evita un secondo prefixes_.reload() mentre il loader precedente usa prefixes_.
+# ---------------------------------------------------------------------------
+
+Replace-Required "logbook/WorkedBefore.cpp" @'
+  void reload ()
+  {
+    prefixes_.reload (configuration_);
+    auto const mysql = Log4OmMysql::loadSettings ();
+    if (mysql.enabled)
+      {
+        async_loader_ = QtConcurrent::run (loader_mysql, mysql, path_, &prefixes_);
+      }
+    else
+      {
+        async_loader_ = QtConcurrent::run (loader, path_, &prefixes_);
+      }
+    loader_watcher_.setFuture (async_loader_);
+  }
+
+  Configuration const * configuration_;
+  QString path_;
+  AD1CCty prefixes_;
+  QFutureWatcher<worked_before_database_type> loader_watcher_;
+  QFuture<worked_before_database_type> async_loader_;
+  worked_before_database_type worked_;
+'@ @'
+  void reload ()
+  {
+    // Non modificare prefixes_ mentre un loader asincrono precedente la sta
+    // ancora utilizzando. Se arriva un nuovo rescan, lo accodiamo.
+    if (loader_watcher_.isRunning ())
+      {
+        reload_pending_ = true;
+        return;
+      }
+
+    reload_pending_ = false;
+    prefixes_.reload (configuration_);
+    auto const mysql = Log4OmMysql::loadSettings ();
+    if (mysql.enabled)
+      {
+        async_loader_ = QtConcurrent::run (loader_mysql, mysql, path_, &prefixes_);
+      }
+    else
+      {
+        async_loader_ = QtConcurrent::run (loader, path_, &prefixes_);
+      }
+    loader_watcher_.setFuture (async_loader_);
+  }
+
+  Configuration const * configuration_;
+  QString path_;
+  AD1CCty prefixes_;
+  QFutureWatcher<worked_before_database_type> loader_watcher_;
+  QFuture<worked_before_database_type> async_loader_;
+  worked_before_database_type worked_;
+  bool reload_pending_ {false};
+'@
+
+Replace-Required "logbook/WorkedBefore.cpp" @'
+      Q_EMIT finished_loading (n, cty_ver, error);
+    });
+  reload ();
+'@ @'
+      Q_EMIT finished_loading (n, cty_ver, error);
+
+      // Se durante il caricamento e' stato richiesto un altro rescan,
+      // eseguilo solo adesso, quando il loader precedente e' terminato.
+      if (m_->reload_pending_)
+        {
+          m_->reload_pending_ = false;
+          m_->reload ();
+        }
+    });
+  reload ();
+'@
+
+Write-Host "Applied FT8 Hunter $HunterVersion serialized Worked Before/Log4OM reload protection."
