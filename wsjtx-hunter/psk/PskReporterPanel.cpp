@@ -72,7 +72,12 @@ PskReporterPanel::PskReporterPanel (Evaluator evaluator,
   , settleTimer_ {new QTimer {this}}
   , listenTimer_ {new QTimer {this}}
 {
-  setWindowTitle (tr ("FT8 Hunter 1.0.14 - PSK Reporter"));
+  setObjectName (QStringLiteral ("FT8HunterPskReporter"));
+  setWindowTitle (tr ("FT8 Hunter - PSK Reporter"));
+  statusLabel_->setObjectName (QStringLiteral ("HunterStatusLine"));
+  countersLabel_->setObjectName (QStringLiteral ("HunterCountersLine"));
+  goButton_->setObjectName (QStringLiteral ("HunterPrimaryButton"));
+  clearButton_->setObjectName (QStringLiteral ("HunterSecondaryButton"));
   setModal (false);
   setMinimumSize (980, 520);
   setAttribute (Qt::WA_DeleteOnClose, false);
@@ -123,6 +128,7 @@ PskReporterPanel::PskReporterPanel (Evaluator evaluator,
   auto * warning = new QLabel {
     tr ("Un report PSK non equivale a CQ. Dopo la QSY FT8 Hunter ascolta localmente "
         "e passa il target al Monitor Hunter soltanto se riceve davvero il suo CQ."), this};
+  warning->setObjectName (QStringLiteral ("HunterWarningLine"));
   warning->setWordWrap (true);
   QFont warningFont = warning->font ();
   warningFont.setBold (true);
