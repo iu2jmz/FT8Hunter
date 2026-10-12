@@ -63,6 +63,7 @@ function renderState(){
   $('#bandHunterInfo').textContent=(state.bandHunter&&state.bandHunter.currentBand)?(state.bandHunter.currentBand+' → '+(state.bandHunter.nextBand||'--')):'--';
   $('#dxState').textContent=(state.dxFun&&state.dxFun.active)?'ATTIVO':'IDLE';
   $('#pskState').textContent=(state.pskReporter&&state.pskReporter.active)?'ATTIVO':'IDLE';
+  $('#tuneBtn').textContent=state.tune?'TUNE ON':'TUNE';
   $('#dxConnectBtn').textContent=(state.dxFun&&state.dxFun.connected)?'Disconnetti':'Connetti';
   $('#dxAutoBtn').textContent=(state.dxFun&&state.dxFun.automatic)?'AUTO QSY ON':'AUTO QSY OFF';
   $('#pskConnectBtn').textContent=(state.pskReporter&&state.pskReporter.connectionEnabled)?'Disconnetti':'Connetti';
@@ -152,6 +153,7 @@ $('#rxInput').onchange=()=>command('set_rx_offset',{value:Number($('#rxInput').v
 $('#txInput').onchange=()=>command('set_tx_offset',{value:Number($('#txInput').value)});
 $('#power').onchange=()=>command('set_power',{value:Number($('#power').value)});
 $('#monitorBtn').onclick=()=>command('monitor',{enabled:true});
+$('#tuneBtn').onclick=()=>command('tune',{enabled:!state.tune});
 $('#stopTxBtn').onclick=()=>command('stop_tx');
 $('#refreshBtn').onclick=()=>command('refresh');
 $('#monitorAutoBtn').onclick=()=>command('monitor_hunter_auto',{enabled:!(state.monitorHunter&&state.monitorHunter.automatic)});
