@@ -79,6 +79,7 @@ public:
   void openWindow ();
   bool huntActive () const;
   void yieldToDxFun ();
+  void setWorkedBeforeState (bool ready, int recordCount, QString const& error);
 
   void observeLocalCq (QString const& rawText,
                        QString const& cqCall,
@@ -141,6 +142,9 @@ private:
   bool pendingValid_ {false};
   Candidate active_;
   bool listening_ {false};
+  bool workedBeforeReady_ {false};
+  int workedBeforeRecords_ {0};
+  QString workedBeforeError_;
   QDateTime lastQsyUtc_;
   QHash<QString, QDateTime> seen_;
   quint64 reports_ {0};
