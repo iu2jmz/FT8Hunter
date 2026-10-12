@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory=$true)][string]$SourceDir,
-    [string]$HunterVersion = "2.2.0"
+    [string]$HunterVersion = "2.2.1"
 )
 
 $ErrorActionPreference = "Stop"
@@ -1957,7 +1957,7 @@ Replace-Required "widgets/mainwindow.cpp" @'
   // FT8 Hunter 2.2.0: Advanced UI applicata dopo il bootstrap.
   // Manteniamo il safe-start della 2.0.3 e applichiamo la skin solo quando
   // la MainWindow e tutti i pannelli Hunter sono gia' stati costruiti.
-  HunterStartupTrace::write (QStringLiteral ("MainWindow: entered 2.2.0 integration"));
+  HunterStartupTrace::write (QStringLiteral ("MainWindow: entered 2.2.1 integration"));
   auto applyHunterTheme = [this] (HunterTheme::Mode mode) {
       HunterStartupTrace::write (
         QStringLiteral ("Theme: applying %1").arg (HunterTheme::name (mode)));
@@ -1995,7 +1995,7 @@ Replace-Required "widgets/mainwindow.cpp" @'
   auto remoteStateProvider =
     [this, monitorHunterPanel, bandHunterPanel, pskReporterPanel] () -> QJsonObject {
       QJsonObject state;
-      state.insert (QStringLiteral ("version"), QStringLiteral ("2.2.0"));
+      state.insert (QStringLiteral ("version"), QStringLiteral ("2.2.1"));
       state.insert (QStringLiteral ("myCall"), m_config.my_callsign ());
       state.insert (QStringLiteral ("frequencyHz"), static_cast<double> (m_freqNominal));
       state.insert (QStringLiteral ("band"), m_currentBand);
@@ -2115,6 +2115,75 @@ Replace-Required "widgets/mainwindow.cpp" @'
                   return reply;
                 }
               ok (tr ("Modo %1").arg (mode));
+            }
+        }
+      else if (name == QStringLiteral ("set_band"))
+        {
+          if (m_transmitting || m_tune || m_auto || hunterBusy || bandHunterPanel->active ())
+            {
+              fail (tr ("Cambio banda non disponibile durante TX/Tune/Auto/Hunter"));
+            }
+          else
+            {
+              auto const requestedBand =
+                command.value (QStringLiteral ("band")).toString ().trimmed ();
+
+              static QStringList const allowedBands {
+                QStringLiteral ("80m"), QStringLiteral ("60m"), QStringLiteral ("40m"),
+                QStringLiteral ("30m"), QStringLiteral ("20m"), QStringLiteral ("17m"),
+                QStringLiteral ("15m"), QStringLiteral ("12m"), QStringLiteral ("10m")};
+
+              if (!allowedBands.contains (requestedBand))
+                {
+                  fail (tr ("Banda non valida"));
+                  return reply;
+                }
+
+              auto const wantedMode =
+                m_mode == QStringLiteral ("FT4") ? Modes::FT4 : Modes::FT8;
+              auto const region = m_config.region ();
+
+              Frequency targetHz {0};
+              for (auto const& item : m_config.frequencies ()->frequency_list ())
+                {
+                  if (item.mode_ != wantedMode) continue;
+                  if (item.region_ != IARURegions::ALL && item.region_ != region) continue;
+                  if (m_config.bands ()->find (item.frequency_) != requestedBand) continue;
+                  targetHz = item.frequency_;
+                  break;
+                }
+
+              if (!targetHz)
+                {
+                  fail (
+                    tr ("Nessuna working frequency %1 configurata per %2")
+                      .arg (m_mode == QStringLiteral ("FT4") ? QStringLiteral ("FT4")
+                                                             : QStringLiteral ("FT8"))
+                      .arg (requestedBand));
+                  return reply;
+                }
+
+              auto const row = m_config.frequencies ()->best_working_frequency (targetHz);
+              if (row < 0)
+                {
+                  fail (tr ("Working frequency non disponibile"));
+                  return reply;
+                }
+
+              ui->pbBandHopping->setChecked (false);
+              ui->bandComboBox->setCurrentIndex (row);
+              m_bandEdited = true;
+              band_changed (targetHz);
+              m_wideGraph->setRxBand (requestedBand);
+              setRig (targetHz);
+              setXIT (ui->TxFreqSpinBox->value (), targetHz);
+              monitor (true);
+
+              ok (
+                tr ("Banda %1 - %2")
+                  .arg (requestedBand)
+                  .arg (m_mode == QStringLiteral ("FT4")
+                          ? QStringLiteral ("FT4") : QStringLiteral ("FT8")));
             }
         }
       else if (name == QStringLiteral ("set_frequency"))
@@ -2358,7 +2427,7 @@ Replace-Required "widgets/mainwindow.cpp" @'
         }
     });
 
-  auto * remoteAction = hunterMenu->addAction (tr ("FT8 Hunter Remote 2.2.0..."));
+  auto * remoteAction = hunterMenu->addAction (tr ("FT8 Hunter Remote 2.2.1..."));
   connect (remoteAction, &QAction::triggered, this, [this, ensureRemoteServer] {
       HunterStartupTrace::write (QStringLiteral ("Remote: settings dialog requested"));
       auto settings = HunterRemoteServer::loadSettings ();
@@ -2396,7 +2465,7 @@ Replace-Required "widgets/mainwindow.cpp" @'
         }
     });
 
-  HunterStartupTrace::write (QStringLiteral ("MainWindow: 2.2.0 integration complete"));
+  HunterStartupTrace::write (QStringLiteral ("MainWindow: 2.2.1 integration complete"));
 
   // FT8 Hunter: aggiorna automaticamente Worked Before da Log4OM.
 '@
